@@ -2618,58 +2618,95 @@ function gameLoop() {
     if (tsunamiActive) {
         const elapsed = Date.now() - tsunamiStartTime;
         const timeLeft = Math.ceil((TSUNAMI_DURATION - elapsed) / 1000);
+        const progress = elapsed / TSUNAMI_DURATION; // 0 to 1
 
-        // Red overlay on danger zones (entire map)
-        ctx.fillStyle = 'rgba(0, 100, 200, 0.2)';
-        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        // Animated wave coming from left side
+        const waveX = -CANVAS_WIDTH + (progress * CANVAS_WIDTH * 2);
 
-        // Highlight ALL cells - red for danger, green for safe
-        for (let row = 1; row < ROWS - 1; row++) {
-            for (let col = 1; col < COLS - 1; col++) {
-                if (maze[row][col] === 0) { // Only highlight paths
-                    let isSafe = false;
-                    for (const spot of tsunamiSafeSpots) {
-                        if (spot.row === row && spot.col === col) {
-                            isSafe = true;
-                            break;
-                        }
-                    }
+        // Draw the approaching wave
+        ctx.save();
 
-                    if (isSafe) {
-                        // Green safe zone - pulsing
-                        const pulse = 0.5 + Math.sin(Date.now() / 100) * 0.3;
-                        ctx.fillStyle = `rgba(0, 255, 0, ${pulse})`;
-                        ctx.fillRect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-                        // Draw safe icon
-                        ctx.fillStyle = '#000';
-                        ctx.font = 'bold 16px Arial';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('✓', col * CELL_SIZE + CELL_SIZE / 2, row * CELL_SIZE + CELL_SIZE / 2 + 5);
-                    } else {
-                        // Red danger zone
-                        ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
-                        ctx.fillRect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-                    }
-                }
+        // Wave gradient - dark blue water
+        const waveGradient = ctx.createLinearGradient(waveX - 100, 0, waveX + 50, 0);
+        waveGradient.addColorStop(0, 'rgba(0, 50, 150, 0.9)');
+        waveGradient.addColorStop(0.5, 'rgba(0, 100, 200, 0.8)');
+        waveGradient.addColorStop(1, 'rgba(100, 200, 255, 0.6)');
+
+        // Draw main wave body
+        ctx.fillStyle = waveGradient;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(waveX - 50, 0);
+
+        // Wavy top edge
+        for (let y = 0; y < CANVAS_HEIGHT; y += 20) {
+            const waveOffset = Math.sin(y / 30 + Date.now() / 200) * 30;
+            ctx.lineTo(waveX + waveOffset, y);
+        }
+        ctx.lineTo(waveX, CANVAS_HEIGHT);
+        ctx.lineTo(0, CANVAS_HEIGHT);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw foam/white caps on wave edge
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        for (let y = 0; y < CANVAS_HEIGHT; y += 20) {
+            const waveOffset = Math.sin(y / 30 + Date.now() / 200) * 30;
+            if (y === 0) {
+                ctx.moveTo(waveX + waveOffset, y);
+            } else {
+                ctx.lineTo(waveX + waveOffset, y);
             }
+        }
+        ctx.stroke();
+
+        // Draw small bubbles/spray
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        for (let i = 0; i < 20; i++) {
+            const bubbleY = (Date.now() / 10 + i * 50) % CANVAS_HEIGHT;
+            const bubbleX = waveX + Math.sin(bubbleY / 20 + i) * 40 + 20;
+            const size = 3 + Math.sin(Date.now() / 100 + i) * 2;
+            ctx.beginPath();
+            ctx.arc(bubbleX, bubbleY, size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+
+        // Highlight safe zones with pulsing green (on top of wave)
+        for (const spot of tsunamiSafeSpots) {
+            const pulse = 0.6 + Math.sin(Date.now() / 100) * 0.4;
+            ctx.fillStyle = `rgba(0, 255, 0, ${pulse})`;
+            ctx.fillRect(spot.col * CELL_SIZE, spot.row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+
+            // Draw safe icon
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 18px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('⛰️', spot.col * CELL_SIZE + CELL_SIZE / 2, spot.row * CELL_SIZE + CELL_SIZE / 2 + 6);
         }
 
         // Big countdown timer
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(CANVAS_WIDTH / 2 - 100, 40, 200, 100);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(CANVAS_WIDTH / 2 - 110, 35, 220, 115);
+        ctx.strokeStyle = '#00BFFF';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(CANVAS_WIDTH / 2 - 110, 35, 220, 115);
 
         ctx.fillStyle = timeLeft <= 3 ? '#FF0000' : '#FFFFFF';
         ctx.font = 'bold 72px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(timeLeft.toString(), CANVAS_WIDTH / 2, 115);
+        ctx.fillText(timeLeft.toString(), CANVAS_WIDTH / 2, 110);
 
         ctx.fillStyle = '#00BFFF';
-        ctx.font = 'bold 20px Arial';
-        ctx.fillText('🌊 TSUNAMI INCOMING! 🌊', CANVAS_WIDTH / 2, 160);
+        ctx.font = 'bold 18px Arial';
+        ctx.fillText('🌊 TSUNAMI INCOMING! 🌊', CANVAS_WIDTH / 2, 135);
 
-        ctx.font = 'bold 14px Arial';
+        ctx.font = 'bold 12px Arial';
         ctx.fillStyle = '#00FF00';
-        ctx.fillText('Get to a GREEN safe zone!', CANVAS_WIDTH / 2, 180);
+        ctx.fillText('Get to HIGH GROUND! ⛰️', CANVAS_WIDTH / 2, 150);
 
         ctx.textAlign = 'left';
     }
