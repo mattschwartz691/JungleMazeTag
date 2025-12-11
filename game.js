@@ -186,6 +186,14 @@ function drawExplosions() {
 let musicPlaying = false;
 let musicGain = null;
 let currentMusicTempo = 300; // Base tempo in ms between beats
+let currentMusicTrack = 1; // 1 = Chase music, 2 = We Bare Bears style
+
+function setMusicTrack(track) {
+    currentMusicTrack = track;
+    // Update button states
+    document.getElementById('music1Btn').classList.toggle('active', track === 1);
+    document.getElementById('music2Btn').classList.toggle('active', track === 2);
+}
 
 function startBackgroundMusic() {
     if (!audioCtx || musicPlaying) return;
@@ -195,30 +203,37 @@ function startBackgroundMusic() {
     musicGain.gain.setValueAtTime(0.15, audioCtx.currentTime);
     musicGain.connect(audioCtx.destination);
 
-    // Extended chase music - 64 notes (8 bars) for longer before repeating
     let beatIndex = 0;
 
-    // Main melody - 8 bar phrase with more development
+    function playBeat() {
+        if (!musicPlaying) return;
+
+        if (currentMusicTrack === 1) {
+            playMusic1Beat(beatIndex);
+        } else {
+            playMusic2Beat(beatIndex);
+        }
+
+        beatIndex++;
+        setTimeout(playBeat, currentMusicTempo);
+    }
+
+    playBeat();
+}
+
+// Music 1: Chase theme (original)
+function playMusic1Beat(beatIndex) {
     const melodyPattern = [
-        // Bar 1: Opening theme - rising
         392.00, 440.00, 523.25, 0, 587.33, 0, 659.25, 0,
-        // Bar 2: Answer phrase - falling
         587.33, 523.25, 440.00, 0, 392.00, 0, 349.23, 0,
-        // Bar 3: Development - variation
         440.00, 0, 523.25, 0, 587.33, 659.25, 698.46, 0,
-        // Bar 4: Climax phrase
         783.99, 698.46, 659.25, 587.33, 659.25, 0, 0, 0,
-        // Bar 5: B section - new theme
         523.25, 0, 587.33, 523.25, 440.00, 0, 392.00, 0,
-        // Bar 6: B continuation
         349.23, 392.00, 440.00, 0, 523.25, 0, 587.33, 0,
-        // Bar 7: Return to A - building
         392.00, 440.00, 523.25, 587.33, 659.25, 698.46, 783.99, 0,
-        // Bar 8: Resolution
         659.25, 587.33, 523.25, 440.00, 392.00, 0, 0, 0
     ];
 
-    // Harmony - thirds and sixths for rich sound
     const harmonyPattern = [
         261.63, 293.66, 329.63, 0, 349.23, 0, 392.00, 0,
         349.23, 329.63, 293.66, 0, 261.63, 0, 246.94, 0,
@@ -230,205 +245,277 @@ function startBackgroundMusic() {
         392.00, 349.23, 329.63, 293.66, 261.63, 0, 0, 0
     ];
 
-    // Counter melody - plays between main melody notes for call and response
-    const counterPattern = [
-        0, 0, 0, 329.63, 0, 392.00, 0, 440.00,
-        0, 0, 0, 329.63, 0, 293.66, 0, 261.63,
-        0, 349.23, 0, 392.00, 0, 0, 0, 523.25,
-        0, 0, 0, 0, 0, 440.00, 392.00, 349.23,
-        0, 392.00, 0, 0, 0, 349.23, 0, 329.63,
-        0, 0, 0, 329.63, 0, 392.00, 0, 440.00,
-        0, 0, 0, 0, 0, 0, 0, 659.25,
-        0, 0, 0, 0, 0, 329.63, 293.66, 261.63
-    ];
-
-    // Bass line - 8 bars with chord progression
     const bassPattern = [
-        130.81, 0, 130.81, 130.81, 146.83, 0, 146.83, 0,  // C
-        174.61, 0, 174.61, 174.61, 164.81, 0, 146.83, 0,  // F, E, D
-        146.83, 0, 146.83, 0, 174.61, 0, 174.61, 0,       // D, F
-        196.00, 0, 196.00, 196.00, 174.61, 0, 0, 0,       // G, F
-        164.81, 0, 164.81, 0, 146.83, 0, 130.81, 0,       // E, D, C
-        123.47, 0, 130.81, 0, 146.83, 0, 164.81, 0,       // B, C, D, E
-        130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94, 0,  // Rising
-        174.61, 164.81, 146.83, 130.81, 130.81, 0, 0, 0   // Resolution to C
+        130.81, 0, 130.81, 130.81, 146.83, 0, 146.83, 0,
+        174.61, 0, 174.61, 174.61, 164.81, 0, 146.83, 0,
+        146.83, 0, 146.83, 0, 174.61, 0, 174.61, 0,
+        196.00, 0, 196.00, 196.00, 174.61, 0, 0, 0,
+        164.81, 0, 164.81, 0, 146.83, 0, 130.81, 0,
+        123.47, 0, 130.81, 0, 146.83, 0, 164.81, 0,
+        130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94, 0,
+        174.61, 164.81, 146.83, 130.81, 130.81, 0, 0, 0
     ];
 
-    // Arpeggiated pad - new instrument! Plays chord tones in sequence
-    const arpPattern = [
-        // Each group of 4 is one chord arpeggiated
-        261.63, 329.63, 392.00, 523.25, 261.63, 329.63, 392.00, 523.25,  // C major
-        293.66, 349.23, 440.00, 587.33, 293.66, 349.23, 440.00, 587.33,  // D minor
-        329.63, 392.00, 493.88, 659.25, 329.63, 392.00, 493.88, 659.25,  // E minor
-        349.23, 440.00, 523.25, 698.46, 349.23, 440.00, 523.25, 698.46,  // F major
-        392.00, 493.88, 587.33, 783.99, 392.00, 493.88, 587.33, 783.99,  // G major
-        329.63, 392.00, 493.88, 659.25, 329.63, 392.00, 493.88, 659.25,  // E minor
-        349.23, 440.00, 523.25, 698.46, 196.00, 246.94, 293.66, 392.00,  // F, G
-        261.63, 329.63, 392.00, 523.25, 261.63, 0, 0, 0                  // C resolve
-    ];
-
-    // Drum patterns - 16 steps
     const kickPattern =  [1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0];
     const snarePattern = [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1];
     const hihatPattern = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 
-    function playBeat() {
-        if (!musicPlaying) return;
+    const patternIndex = beatIndex % 64;
+    const drumIndex = beatIndex % 16;
 
-        const patternIndex = beatIndex % 64;
-        const drumIndex = beatIndex % 16;
+    // Drums
+    if (kickPattern[drumIndex]) playKick();
+    if (snarePattern[drumIndex]) playSnare();
+    if (hihatPattern[drumIndex]) playHihat();
 
-        // === DRUMS ===
+    // Melody
+    const melodyNote = melodyPattern[patternIndex];
+    if (melodyNote > 0) playSquareLead(melodyNote);
 
-        // Kick drum
-        if (kickPattern[drumIndex]) {
-            const kickOsc = audioCtx.createOscillator();
-            const kickGain = audioCtx.createGain();
-            kickOsc.connect(kickGain);
-            kickGain.connect(musicGain);
-            kickOsc.frequency.setValueAtTime(150, audioCtx.currentTime);
-            kickOsc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
-            kickOsc.type = 'sine';
-            kickGain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-            kickGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-            kickOsc.start(audioCtx.currentTime);
-            kickOsc.stop(audioCtx.currentTime + 0.15);
-        }
+    // Harmony
+    const harmonyNote = harmonyPattern[patternIndex];
+    if (harmonyNote > 0) playSinePad(harmonyNote);
 
-        // Snare drum
-        if (snarePattern[drumIndex]) {
-            const snareOsc = audioCtx.createOscillator();
-            const snareGain = audioCtx.createGain();
-            snareOsc.connect(snareGain);
-            snareGain.connect(musicGain);
-            snareOsc.frequency.setValueAtTime(250, audioCtx.currentTime);
-            snareOsc.type = 'triangle';
-            snareGain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            snareGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-            snareOsc.start(audioCtx.currentTime);
-            snareOsc.stop(audioCtx.currentTime + 0.1);
+    // Bass
+    const bassNote = bassPattern[patternIndex];
+    if (bassNote > 0) playBass(bassNote);
+}
 
-            // Noise component
-            const noiseOsc = audioCtx.createOscillator();
-            const noiseGain = audioCtx.createGain();
-            noiseOsc.connect(noiseGain);
-            noiseGain.connect(musicGain);
-            noiseOsc.frequency.setValueAtTime(1000, audioCtx.currentTime);
-            noiseOsc.type = 'sawtooth';
-            noiseGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-            noiseGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
-            noiseOsc.start(audioCtx.currentTime);
-            noiseOsc.stop(audioCtx.currentTime + 0.08);
-        }
+// Music 2: We Bare Bears inspired - cheerful, bouncy ukulele-style
+function playMusic2Beat(beatIndex) {
+    // Cheerful melody inspired by "We'll Be There" - bouncy and happy
+    // Key of G major, upbeat feel
+    const melodyPattern = [
+        // "We'll be there" style opening - bouncy and cheerful
+        392.00, 0, 493.88, 392.00, 587.33, 0, 493.88, 0,  // G B G D B
+        392.00, 0, 440.00, 493.88, 523.25, 0, 0, 0,       // G A B C
+        587.33, 0, 523.25, 493.88, 440.00, 0, 392.00, 0,  // D C B A G
+        440.00, 493.88, 523.25, 0, 493.88, 0, 0, 0,       // A B C B
+        // Second phrase - variation
+        392.00, 440.00, 493.88, 0, 587.33, 659.25, 587.33, 0,  // G A B D E D
+        523.25, 0, 493.88, 0, 440.00, 0, 392.00, 0,       // C B A G
+        493.88, 523.25, 587.33, 0, 659.25, 0, 587.33, 523.25,  // B C D E D C
+        493.88, 0, 392.00, 0, 0, 0, 0, 0                  // B G
+    ];
 
-        // Hi-hat
-        if (hihatPattern[drumIndex]) {
-            const hihatOsc = audioCtx.createOscillator();
-            const hihatGain = audioCtx.createGain();
-            hihatOsc.connect(hihatGain);
-            hihatGain.connect(musicGain);
-            hihatOsc.frequency.setValueAtTime(8000 + Math.random() * 2000, audioCtx.currentTime);
-            hihatOsc.type = 'square';
-            hihatGain.gain.setValueAtTime(0.03, audioCtx.currentTime);
-            hihatGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
-            hihatOsc.start(audioCtx.currentTime);
-            hihatOsc.stop(audioCtx.currentTime + 0.03);
-        }
+    // Ukulele-style strumming pattern (arpeggiated chords)
+    const ukePattern = [
+        // G major strum
+        196.00, 293.66, 392.00, 493.88, 196.00, 392.00, 293.66, 493.88,
+        // C major
+        261.63, 329.63, 392.00, 523.25, 261.63, 392.00, 329.63, 523.25,
+        // D major
+        293.66, 369.99, 440.00, 587.33, 293.66, 440.00, 369.99, 587.33,
+        // G major
+        196.00, 293.66, 392.00, 493.88, 196.00, 392.00, 293.66, 493.88,
+        // Em
+        164.81, 246.94, 329.63, 493.88, 164.81, 329.63, 246.94, 493.88,
+        // C major
+        261.63, 329.63, 392.00, 523.25, 261.63, 392.00, 329.63, 523.25,
+        // D major
+        293.66, 369.99, 440.00, 587.33, 293.66, 440.00, 369.99, 587.33,
+        // G major resolve
+        196.00, 293.66, 392.00, 493.88, 392.00, 0, 0, 0
+    ];
 
-        // === MAIN MELODY (square wave - beepy lead) ===
-        const melodyNote = melodyPattern[patternIndex];
-        if (melodyNote > 0) {
-            const melodyOsc = audioCtx.createOscillator();
-            const melodyGainNode = audioCtx.createGain();
-            melodyOsc.connect(melodyGainNode);
-            melodyGainNode.connect(musicGain);
-            melodyOsc.frequency.setValueAtTime(melodyNote, audioCtx.currentTime);
-            melodyOsc.type = 'square';
-            melodyGainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            melodyGainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-            melodyOsc.start(audioCtx.currentTime);
-            melodyOsc.stop(audioCtx.currentTime + 0.15);
+    // Walking bass line - friendly and bouncy
+    const bassPattern = [
+        98.00, 0, 123.47, 0, 98.00, 0, 110.00, 0,     // G
+        130.81, 0, 146.83, 0, 130.81, 0, 123.47, 0,   // C
+        146.83, 0, 164.81, 0, 146.83, 0, 130.81, 0,   // D
+        98.00, 0, 110.00, 0, 123.47, 0, 98.00, 0,     // G
+        82.41, 0, 98.00, 0, 110.00, 0, 123.47, 0,     // Em
+        130.81, 0, 146.83, 0, 164.81, 0, 146.83, 0,   // C
+        146.83, 0, 130.81, 0, 123.47, 0, 110.00, 0,   // D
+        98.00, 0, 98.00, 0, 0, 0, 0, 0                // G
+    ];
 
-            // Detuned layer for thickness
-            const melodyOsc2 = audioCtx.createOscillator();
-            const melodyGain2 = audioCtx.createGain();
-            melodyOsc2.connect(melodyGain2);
-            melodyGain2.connect(musicGain);
-            melodyOsc2.frequency.setValueAtTime(melodyNote * 1.003, audioCtx.currentTime);
-            melodyOsc2.type = 'square';
-            melodyGain2.gain.setValueAtTime(0.05, audioCtx.currentTime);
-            melodyGain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-            melodyOsc2.start(audioCtx.currentTime);
-            melodyOsc2.stop(audioCtx.currentTime + 0.15);
-        }
+    // Light, bouncy percussion
+    const kickPattern =  [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
+    const slapPattern =  [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0];
+    const shakePattern = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0];
 
-        // === COUNTER MELODY (sawtooth - fills gaps) ===
-        const counterNote = counterPattern[patternIndex];
-        if (counterNote > 0) {
-            const counterOsc = audioCtx.createOscillator();
-            const counterGain = audioCtx.createGain();
-            counterOsc.connect(counterGain);
-            counterGain.connect(musicGain);
-            counterOsc.frequency.setValueAtTime(counterNote, audioCtx.currentTime);
-            counterOsc.type = 'sawtooth';
-            counterGain.gain.setValueAtTime(0.06, audioCtx.currentTime);
-            counterGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-            counterOsc.start(audioCtx.currentTime);
-            counterOsc.stop(audioCtx.currentTime + 0.1);
-        }
+    const patternIndex = beatIndex % 64;
+    const drumIndex = beatIndex % 16;
 
-        // === HARMONY (sine wave - soft pad) ===
-        const harmonyNote = harmonyPattern[patternIndex];
-        if (harmonyNote > 0) {
-            const harmonyOsc = audioCtx.createOscillator();
-            const harmonyGainNode = audioCtx.createGain();
-            harmonyOsc.connect(harmonyGainNode);
-            harmonyGainNode.connect(musicGain);
-            harmonyOsc.frequency.setValueAtTime(harmonyNote, audioCtx.currentTime);
-            harmonyOsc.type = 'sine';
-            harmonyGainNode.gain.setValueAtTime(0.07, audioCtx.currentTime);
-            harmonyGainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
-            harmonyOsc.start(audioCtx.currentTime);
-            harmonyOsc.stop(audioCtx.currentTime + 0.12);
-        }
+    // Light percussion
+    if (kickPattern[drumIndex]) playKick();
+    if (slapPattern[drumIndex]) playWoodBlock();
+    if (shakePattern[drumIndex]) playShaker();
 
-        // === ARPEGGIO PAD (triangle wave - shimmery texture) ===
-        const arpNote = arpPattern[patternIndex];
-        if (arpNote > 0) {
-            const arpOsc = audioCtx.createOscillator();
-            const arpGain = audioCtx.createGain();
-            arpOsc.connect(arpGain);
-            arpGain.connect(musicGain);
-            arpOsc.frequency.setValueAtTime(arpNote, audioCtx.currentTime);
-            arpOsc.type = 'triangle';
-            arpGain.gain.setValueAtTime(0.04, audioCtx.currentTime);
-            arpGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
-            arpOsc.start(audioCtx.currentTime);
-            arpOsc.stop(audioCtx.currentTime + 0.08);
-        }
+    // Ukulele strumming
+    const ukeNote = ukePattern[patternIndex];
+    if (ukeNote > 0) playUkulele(ukeNote);
 
-        // === BASS (triangle wave - warm and punchy) ===
-        const bassNote = bassPattern[patternIndex];
-        if (bassNote > 0) {
-            const bassOsc = audioCtx.createOscillator();
-            const bassGainNode = audioCtx.createGain();
-            bassOsc.connect(bassGainNode);
-            bassGainNode.connect(musicGain);
-            bassOsc.frequency.setValueAtTime(bassNote, audioCtx.currentTime);
-            bassOsc.type = 'triangle';
-            bassGainNode.gain.setValueAtTime(0.18, audioCtx.currentTime);
-            bassGainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
-            bassOsc.start(audioCtx.currentTime);
-            bassOsc.stop(audioCtx.currentTime + 0.12);
-        }
+    // Main melody (whistling/xylophone style)
+    const melodyNote = melodyPattern[patternIndex];
+    if (melodyNote > 0) playXylophone(melodyNote);
 
-        beatIndex++;
+    // Bass
+    const bassNote = bassPattern[patternIndex];
+    if (bassNote > 0) playBouncyBass(bassNote);
+}
 
-        // Schedule next beat - tempo changes based on player distance
-        setTimeout(playBeat, currentMusicTempo);
-    }
+// === Instrument functions ===
 
-    playBeat();
+function playKick() {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(musicGain);
+    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.15);
+}
+
+function playSnare() {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(musicGain);
+    osc.frequency.setValueAtTime(250, audioCtx.currentTime);
+    osc.type = 'triangle';
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.1);
+}
+
+function playHihat() {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(musicGain);
+    osc.frequency.setValueAtTime(8000 + Math.random() * 2000, audioCtx.currentTime);
+    osc.type = 'square';
+    gain.gain.setValueAtTime(0.03, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.03);
+}
+
+function playSquareLead(freq) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(musicGain);
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    osc.type = 'square';
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.15);
+}
+
+function playSinePad(freq) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(musicGain);
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.07, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.12);
+}
+
+function playBass(freq) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(musicGain);
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    osc.type = 'triangle';
+    gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.12);
+}
+
+function playWoodBlock() {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(musicGain);
+    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.05);
+    osc.type = 'triangle';
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.08);
+}
+
+function playShaker() {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(musicGain);
+    osc.frequency.setValueAtTime(6000 + Math.random() * 3000, audioCtx.currentTime);
+    osc.type = 'sawtooth';
+    gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.04);
+}
+
+function playUkulele(freq) {
+    // Ukulele-like plucky sound
+    const osc = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    osc2.connect(gain);
+    gain.connect(musicGain);
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    osc2.frequency.setValueAtTime(freq * 2.01, audioCtx.currentTime); // Slight detune for richness
+    osc.type = 'triangle';
+    osc2.type = 'sine';
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    osc.start(audioCtx.currentTime);
+    osc2.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.15);
+    osc2.stop(audioCtx.currentTime + 0.15);
+}
+
+function playXylophone(freq) {
+    // Bright, bell-like xylophone tone
+    const osc = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    osc2.connect(gain);
+    gain.connect(musicGain);
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    osc2.frequency.setValueAtTime(freq * 3, audioCtx.currentTime); // Overtone
+    osc.type = 'sine';
+    osc2.type = 'sine';
+    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+    osc.start(audioCtx.currentTime);
+    osc2.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.2);
+    osc2.stop(audioCtx.currentTime + 0.2);
+}
+
+function playBouncyBass(freq) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(musicGain);
+    osc.frequency.setValueAtTime(freq * 1.02, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(freq, audioCtx.currentTime + 0.05);
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.15);
 }
 
 function updateMusicTempo(playerDistance) {
