@@ -675,24 +675,29 @@ let tsunamiSafeSpots = []; // Array of {row, col} safe spots
 const TSUNAMI_DURATION = 10000; // 10 seconds to reach safety
 const TSUNAMI_SAFE_SPOT_COUNT = 3; // Number of safe spots
 
-// Random disaster system
-const DISASTER_INTERVAL = 15000; // Random disaster every 15 seconds
+// Disaster cycle system
+const DISASTER_INTERVAL = 15000; // Disaster every 15 seconds
 let lastDisasterTime = 0;
+let currentDisasterIndex = 0; // 0 = earthquake, 1 = tsunami, 2 = tornado
 
-function triggerRandomDisaster() {
+function triggerNextDisaster() {
     // Don't trigger if another disaster is active
-    if (earthquakeActive || tsunamiActive) return;
+    if (earthquakeActive || tsunamiActive || tornado) return;
 
-    const disasterType = Math.floor(Math.random() * 2); // 0 = earthquake, 1 = tsunami
-
-    switch (disasterType) {
+    switch (currentDisasterIndex) {
         case 0:
             triggerEarthquake();
             break;
         case 1:
             triggerTsunami();
             break;
+        case 2:
+            tornado = new Tornado();
+            break;
     }
+
+    // Cycle to next disaster
+    currentDisasterIndex = (currentDisasterIndex + 1) % 3;
 }
 
 function triggerTsunami() {
@@ -2133,23 +2138,6 @@ function shiftWalls() {
         return; // Skip normal wall shift
     }
 
-    // Don't trigger disasters during tsunami
-    if (tsunamiActive) {
-        // Normal wall shift during tsunami
-    } else {
-        // Random chance for earthquake
-        if (Math.random() < EARTHQUAKE_CHANCE) {
-            triggerEarthquake();
-            return; // Earthquake destroys walls, next shift will rebuild
-        }
-
-        // Random chance for tsunami
-        if (Math.random() < TSUNAMI_CHANCE) {
-            triggerTsunami();
-            // Continue with normal wall shift
-        }
-    }
-
     // Simple wall shift - just toggle some random walls
     for (let i = 0; i < 15; i++) {
         const row = Math.floor(Math.random() * (ROWS - 6)) + 3;
@@ -2503,6 +2491,13 @@ function gameLoop() {
             cat.update();
         }
 
+        // Update tornado
+        if (tornado) {
+            if (!tornado.update()) {
+                tornado = null; // Remove tornado when done
+            }
+        }
+
         // Check powerup collisions
         for (let i = powerups.length - 1; i >= 0; i--) {
             if (!powerups[i]) continue;
@@ -2532,7 +2527,7 @@ function gameLoop() {
 
         // Random disaster timer
         if (Date.now() - lastDisasterTime > DISASTER_INTERVAL) {
-            triggerRandomDisaster();
+            triggerNextDisaster();
             lastDisasterTime = Date.now();
         }
 
@@ -2587,6 +2582,11 @@ function gameLoop() {
     // Draw cat enemy
     if (cat) {
         cat.draw();
+    }
+
+    // Draw tornado
+    if (tornado) {
+        tornado.draw();
     }
 
     // Draw explosions on top
