@@ -186,7 +186,7 @@ function drawExplosions() {
 let musicPlaying = false;
 let musicGain = null;
 let currentMusicTempo = 300; // Base tempo in ms between beats
-let currentMusicTrack = 1; // 1 = Chase music, 2 = We Bare Bears style
+let currentMusicTrack = 2; // 1 = Jungle Chase, 2 = Bear Buddies (default)
 
 function setMusicTrack(track) {
     currentMusicTrack = track;
@@ -281,65 +281,109 @@ function playMusic1Beat(beatIndex) {
     if (bassNote > 0) playBass(bassNote);
 }
 
-// Music 2: We Bare Bears inspired - cheerful, bouncy ukulele-style
+// Music 2: Bear Buddies - cheerful, bouncy ukulele-style with extended sections
 function playMusic2Beat(beatIndex) {
-    // Cheerful melody inspired by "We'll Be There" - bouncy and happy
-    // Key of G major, upbeat feel
+    // Extended melody with Verse (A), Catchy Refrain (B), and Bridge (C)
+    // Key of G major, upbeat feel - 128 beats total (4 sections of 32)
     const melodyPattern = [
-        // "We'll be there" style opening - bouncy and cheerful
+        // === VERSE A (32 beats) - Playful intro ===
         392.00, 0, 493.88, 392.00, 587.33, 0, 493.88, 0,  // G B G D B
         392.00, 0, 440.00, 493.88, 523.25, 0, 0, 0,       // G A B C
         587.33, 0, 523.25, 493.88, 440.00, 0, 392.00, 0,  // D C B A G
         440.00, 493.88, 523.25, 0, 493.88, 0, 0, 0,       // A B C B
-        // Second phrase - variation
+
+        // === CATCHY REFRAIN B (32 beats) - The hook! ===
+        // Higher energy, memorable "we're best friends" vibe
+        783.99, 0, 783.99, 698.46, 659.25, 0, 587.33, 0,  // G5 G5 F5 E5 D5
+        659.25, 0, 698.46, 0, 783.99, 0, 0, 0,            // E5 F5 G5 (ascending)
+        783.99, 783.99, 698.46, 0, 659.25, 587.33, 523.25, 0,  // Descending hook
+        587.33, 0, 659.25, 0, 587.33, 0, 0, 0,            // D5 E5 D5 (resolve)
+
+        // === VERSE A2 (32 beats) - Variation with more bounce ===
         392.00, 440.00, 493.88, 0, 587.33, 659.25, 587.33, 0,  // G A B D E D
         523.25, 0, 493.88, 0, 440.00, 0, 392.00, 0,       // C B A G
         493.88, 523.25, 587.33, 0, 659.25, 0, 587.33, 523.25,  // B C D E D C
-        493.88, 0, 392.00, 0, 0, 0, 0, 0                  // B G
+        493.88, 0, 392.00, 0, 0, 0, 0, 0,                 // B G
+
+        // === BRIDGE C (32 beats) - Dreamy, then builds back ===
+        523.25, 0, 0, 523.25, 587.33, 0, 0, 587.33,       // Syncopated C D
+        659.25, 0, 0, 0, 587.33, 523.25, 493.88, 0,       // E... D C B
+        440.00, 493.88, 523.25, 587.33, 659.25, 698.46, 783.99, 0,  // Ascending run!
+        783.99, 0, 659.25, 0, 587.33, 0, 0, 0             // G5 E5 D5 (big finish)
     ];
 
-    // Ukulele-style strumming pattern (arpeggiated chords)
+    // Extended ukulele patterns for each section
     const ukePattern = [
-        // G major strum
-        196.00, 293.66, 392.00, 493.88, 196.00, 392.00, 293.66, 493.88,
-        // C major
-        261.63, 329.63, 392.00, 523.25, 261.63, 392.00, 329.63, 523.25,
-        // D major
-        293.66, 369.99, 440.00, 587.33, 293.66, 440.00, 369.99, 587.33,
-        // G major
-        196.00, 293.66, 392.00, 493.88, 196.00, 392.00, 293.66, 493.88,
-        // Em
-        164.81, 246.94, 329.63, 493.88, 164.81, 329.63, 246.94, 493.88,
-        // C major
-        261.63, 329.63, 392.00, 523.25, 261.63, 392.00, 329.63, 523.25,
-        // D major
-        293.66, 369.99, 440.00, 587.33, 293.66, 440.00, 369.99, 587.33,
-        // G major resolve
-        196.00, 293.66, 392.00, 493.88, 392.00, 0, 0, 0
+        // === VERSE A - Standard sunny chords ===
+        196.00, 293.66, 392.00, 493.88, 196.00, 392.00, 293.66, 493.88,  // G
+        261.63, 329.63, 392.00, 523.25, 261.63, 392.00, 329.63, 523.25,  // C
+        293.66, 369.99, 440.00, 587.33, 293.66, 440.00, 369.99, 587.33,  // D
+        196.00, 293.66, 392.00, 493.88, 196.00, 392.00, 293.66, 493.88,  // G
+
+        // === REFRAIN B - More energetic strumming ===
+        261.63, 329.63, 392.00, 261.63, 329.63, 392.00, 329.63, 261.63,  // C (busy)
+        293.66, 369.99, 440.00, 293.66, 369.99, 440.00, 369.99, 293.66,  // D (busy)
+        196.00, 293.66, 392.00, 196.00, 293.66, 392.00, 293.66, 196.00,  // G (busy)
+        293.66, 369.99, 440.00, 587.33, 392.00, 0, 0, 0,                 // D resolve
+
+        // === VERSE A2 - Gentle again ===
+        164.81, 246.94, 329.63, 493.88, 164.81, 329.63, 246.94, 493.88,  // Em
+        261.63, 329.63, 392.00, 523.25, 261.63, 392.00, 329.63, 523.25,  // C
+        293.66, 369.99, 440.00, 587.33, 293.66, 440.00, 369.99, 587.33,  // D
+        196.00, 293.66, 392.00, 493.88, 196.00, 392.00, 293.66, 493.88,  // G
+
+        // === BRIDGE C - Sparse then full ===
+        220.00, 0, 277.18, 0, 329.63, 0, 277.18, 0,       // Am (sparse)
+        261.63, 0, 329.63, 0, 392.00, 0, 329.63, 0,       // C (sparse)
+        293.66, 369.99, 440.00, 587.33, 293.66, 440.00, 369.99, 587.33,  // D (full)
+        196.00, 293.66, 392.00, 493.88, 587.33, 0, 0, 0   // G (big resolve)
     ];
 
-    // Walking bass line - friendly and bouncy
+    // Extended walking bass with section changes
     const bassPattern = [
+        // === VERSE A ===
         98.00, 0, 123.47, 0, 98.00, 0, 110.00, 0,     // G
         130.81, 0, 146.83, 0, 130.81, 0, 123.47, 0,   // C
         146.83, 0, 164.81, 0, 146.83, 0, 130.81, 0,   // D
         98.00, 0, 110.00, 0, 123.47, 0, 98.00, 0,     // G
+
+        // === REFRAIN B - More driving ===
+        130.81, 130.81, 146.83, 0, 130.81, 130.81, 123.47, 0,  // C (driving)
+        146.83, 146.83, 164.81, 0, 146.83, 146.83, 130.81, 0,  // D (driving)
+        98.00, 98.00, 110.00, 0, 123.47, 123.47, 98.00, 0,     // G (driving)
+        146.83, 0, 130.81, 0, 98.00, 0, 0, 0,                  // D G resolve
+
+        // === VERSE A2 ===
         82.41, 0, 98.00, 0, 110.00, 0, 123.47, 0,     // Em
         130.81, 0, 146.83, 0, 164.81, 0, 146.83, 0,   // C
         146.83, 0, 130.81, 0, 123.47, 0, 110.00, 0,   // D
-        98.00, 0, 98.00, 0, 0, 0, 0, 0                // G
+        98.00, 0, 98.00, 0, 0, 0, 0, 0,               // G
+
+        // === BRIDGE C - Sparse then powerful ===
+        110.00, 0, 0, 0, 110.00, 0, 0, 0,             // Am (sparse)
+        130.81, 0, 0, 0, 130.81, 0, 0, 0,             // C (sparse)
+        146.83, 146.83, 164.81, 146.83, 130.81, 130.81, 123.47, 110.00,  // D walk down
+        98.00, 110.00, 123.47, 146.83, 98.00, 0, 0, 0  // G big finish
     ];
 
-    // Light, bouncy percussion
+    // Light, bouncy percussion - varies by section
     const kickPattern =  [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
     const slapPattern =  [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0];
     const shakePattern = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0];
 
-    const patternIndex = beatIndex % 64;
-    const drumIndex = beatIndex % 16;
+    // Extra percussion for refrain (beats 32-63)
+    const refrainKick = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0];
 
-    // Light percussion
-    if (kickPattern[drumIndex]) playKick();
+    const patternIndex = beatIndex % 128;  // Extended to 128 beats
+    const drumIndex = beatIndex % 16;
+    const isRefrain = patternIndex >= 32 && patternIndex < 64;
+
+    // Light percussion - more energy during refrain
+    if (isRefrain) {
+        if (refrainKick[drumIndex]) playKick();
+    } else {
+        if (kickPattern[drumIndex]) playKick();
+    }
     if (slapPattern[drumIndex]) playWoodBlock();
     if (shakePattern[drumIndex]) playShaker();
 
@@ -2225,13 +2269,18 @@ function gameLoop() {
         // Update explosion particles
         updateExplosions();
 
-        // Update music tempo based on player distance
-        const p1 = players[0];
-        const p2 = players[1];
-        const dx = (p1.x + p1.size / 2) - (p2.x + p2.size / 2);
-        const dy = (p1.y + p1.size / 2) - (p2.y + p2.size / 2);
-        const playerDistance = Math.sqrt(dx * dx + dy * dy);
-        updateMusicTempo(playerDistance);
+        // Update music tempo based on player distance (only for Jungle Chase track)
+        if (currentMusicTrack === 1) {
+            const p1 = players[0];
+            const p2 = players[1];
+            const dx = (p1.x + p1.size / 2) - (p2.x + p2.size / 2);
+            const dy = (p1.y + p1.size / 2) - (p2.y + p2.size / 2);
+            const playerDistance = Math.sqrt(dx * dx + dy * dy);
+            updateMusicTempo(playerDistance);
+        } else {
+            // Bear Buddies plays at constant tempo
+            currentMusicTempo = 220;
+        }
     }
 
     // Draw
