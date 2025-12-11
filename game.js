@@ -642,6 +642,131 @@ let survivedSinceLastTag = [true, true]; // Track if player survived since last 
 
 // Cat enemy
 let cat = null;
+
+// Vents - teleporters in corners
+const vents = [
+    { row: 2, col: 2, color: '#FF6B6B' },           // Top-left (red)
+    { row: 2, col: COLS - 3, color: '#4ECDC4' },    // Top-right (teal)
+    { row: ROWS - 3, col: 2, color: '#FFE66D' },    // Bottom-left (yellow)
+    { row: ROWS - 3, col: COLS - 3, color: '#95E1D3' } // Bottom-right (mint)
+];
+let ventCooldown = [0, 0]; // Cooldown for each player to prevent instant re-teleport
+
+function checkVentCollision(player, playerIndex) {
+    if (ventCooldown[playerIndex] > 0) return;
+
+    const playerCol = Math.floor((player.x + player.size / 2) / CELL_SIZE);
+    const playerRow = Math.floor((player.y + player.size / 2) / CELL_SIZE);
+
+    for (let i = 0; i < vents.length; i++) {
+        const vent = vents[i];
+        if (vent.row === playerRow && vent.col === playerCol) {
+            // Found a vent! Teleport to a random different vent
+            const otherVents = vents.filter((v, idx) => idx !== i);
+            const targetVent = otherVents[Math.floor(Math.random() * otherVents.length)];
+
+            player.x = targetVent.col * CELL_SIZE + (CELL_SIZE - player.size) / 2;
+            player.y = targetVent.row * CELL_SIZE + (CELL_SIZE - player.size) / 2;
+
+            ventCooldown[playerIndex] = 1000; // 1 second cooldown
+            playVentSound();
+            break;
+        }
+    }
+}
+
+function playVentSound() {
+    if (!audioCtx) return;
+
+    // Whoosh teleport sound
+    const osc = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.connect(gain);
+    osc2.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+    osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.2);
+    osc.type = 'sine';
+
+    osc2.frequency.setValueAtTime(150, audioCtx.currentTime);
+    osc2.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.15);
+    osc2.type = 'triangle';
+
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+
+    osc.start(audioCtx.currentTime);
+    osc2.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.25);
+    osc2.stop(audioCtx.currentTime + 0.25);
+}
+
+function drawVents() {
+    const time = Date.now();
+
+    for (const vent of vents) {
+        const x = vent.col * CELL_SIZE;
+        const y = vent.row * CELL_SIZE;
+        const cx = x + CELL_SIZE / 2;
+        const cy = y + CELL_SIZE / 2;
+
+        // Vent base (dark metal)
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(x + 2, y + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+
+        // Vent grate pattern
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 4; i++) {
+            const offset = 6 + i * 6;
+            ctx.beginPath();
+            ctx.moveTo(x + offset, y + 4);
+            ctx.lineTo(x + offset, y + CELL_SIZE - 4);
+            ctx.stroke();
+        }
+
+        // Glowing effect (pulsing)
+        const pulse = 0.5 + Math.sin(time / 200) * 0.3;
+        const glowRadius = 15 + Math.sin(time / 150) * 5;
+
+        // Outer glow
+        const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowRadius);
+        gradient.addColorStop(0, vent.color);
+        gradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = gradient;
+        ctx.globalAlpha = pulse;
+        ctx.beginPath();
+        ctx.arc(cx, cy, glowRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Inner spinning effect
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(time / 500);
+
+        ctx.strokeStyle = vent.color;
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 4; i++) {
+            ctx.rotate(Math.PI / 2);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(8, 8);
+            ctx.stroke();
+        }
+        ctx.restore();
+
+        // Center dot
+        ctx.fillStyle = vent.color;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
 let mazziEnabled = false; // Mazzi toggle - off by default
 
 function toggleMazzi() {
@@ -657,6 +782,64 @@ function toggleMazzi() {
         cat = null;
     }
 }
+
+// Animal selection for players
+const animalEmojis = {
+    walrus: '🦭',
+    penguin: '🐧',
+    bear: '🐻',
+    fox: '🦊'
+};
+
+function toggleAnimalSelect(playerNum) {
+    const selectEl = document.getElementById(`p${playerNum}AnimalSelect`);
+    const otherSelectEl = document.getElementById(`p${playerNum === 1 ? 2 : 1}AnimalSelect`);
+
+    // Close other player's menu if open
+    if (otherSelectEl) {
+        otherSelectEl.classList.remove('show');
+    }
+
+    // Toggle this player's menu
+    if (selectEl) {
+        selectEl.classList.toggle('show');
+    }
+}
+
+function selectAnimal(playerNum, animal) {
+    const playerIndex = playerNum - 1;
+    if (players[playerIndex]) {
+        players[playerIndex].animal = animal;
+    }
+
+    // Update the icon in the header
+    const iconEl = document.getElementById(`p${playerNum}Icon`);
+    if (iconEl) {
+        iconEl.textContent = animalEmojis[animal];
+    }
+
+    // Update button selected states
+    const selectEl = document.getElementById(`p${playerNum}AnimalSelect`);
+    if (selectEl) {
+        const buttons = selectEl.querySelectorAll('.animal-btn');
+        buttons.forEach(btn => {
+            const btnAnimal = btn.textContent === '🦭' ? 'walrus' :
+                             btn.textContent === '🐧' ? 'penguin' :
+                             btn.textContent === '🐻' ? 'bear' : 'fox';
+            btn.classList.toggle('selected', btnAnimal === animal);
+        });
+
+        // Hide the selection menu
+        selectEl.classList.remove('show');
+    }
+}
+
+// Close animal select when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.player-info')) {
+        document.querySelectorAll('.animal-select').forEach(el => el.classList.remove('show'));
+    }
+});
 
 // Tornado system
 let tornado = null;
@@ -820,10 +1003,22 @@ function playTsunamiHitSound() {
 
 class Tornado {
     constructor() {
-        this.height = CELL_SIZE * 3; // 3 cells tall
-        this.width = CELL_SIZE * 2;
-        this.speed = 4;
+        this.height = CELL_SIZE * 5; // 5 cells tall - bigger!
+        this.width = CELL_SIZE * 3;  // Wider base
+        this.speed = 3;
         this.rotation = 0;
+        this.debris = []; // Flying debris particles
+        // Create random debris
+        for (let i = 0; i < 25; i++) {
+            this.debris.push({
+                angle: Math.random() * Math.PI * 2,
+                dist: Math.random() * this.width * 0.6,
+                y: Math.random() * this.height,
+                size: 3 + Math.random() * 5,
+                speed: 0.05 + Math.random() * 0.1,
+                type: Math.floor(Math.random() * 3) // 0=leaf, 1=dirt, 2=twig
+            });
+        }
 
         // Start from left or right side, go horizontally through center
         const centerRow = Math.floor(ROWS / 2);
@@ -890,50 +1085,113 @@ class Tornado {
 
     draw() {
         const cx = this.x;
-        const cy = this.y + this.height / 2;
+        const baseY = this.y + this.height; // Bottom of tornado
+        const topY = this.y; // Top of tornado
 
         ctx.save();
-        ctx.translate(cx, cy);
 
-        // Draw tornado funnel (multiple spinning layers)
-        for (let i = 0; i < 6; i++) {
-            const layerY = -this.height / 2 + (i * this.height / 5);
-            const layerWidth = this.width * (0.3 + (i * 0.14));
-            const alpha = 0.7 - i * 0.08;
+        // Draw the main funnel shape - wide at top, narrow at bottom
+        const funnelLayers = 20;
+        for (let i = 0; i < funnelLayers; i++) {
+            const t = i / funnelLayers;
+            const layerY = topY + t * this.height;
+            // Funnel gets narrower toward the bottom (inverted cone)
+            const layerWidth = this.width * (1 - t * 0.7);
+            const wobble = Math.sin(this.rotation * 2 + t * 10) * 5;
+
+            // Create gradient from dark gray at edges to lighter in middle
+            const gradient = ctx.createRadialGradient(
+                cx + wobble, layerY, 0,
+                cx + wobble, layerY, layerWidth / 2
+            );
+
+            // Darker, stormier colors
+            const alpha = 0.6 + t * 0.2;
+            gradient.addColorStop(0, `rgba(60, 65, 75, ${alpha})`);
+            gradient.addColorStop(0.5, `rgba(80, 85, 95, ${alpha * 0.8})`);
+            gradient.addColorStop(1, `rgba(50, 55, 65, ${alpha * 0.4})`);
+
+            ctx.beginPath();
+            ctx.ellipse(cx + wobble, layerY, layerWidth / 2, 6 + (1-t) * 4, 0, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        }
+
+        // Draw swirling wind lines
+        ctx.strokeStyle = 'rgba(100, 105, 115, 0.5)';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 8; i++) {
+            const startAngle = this.rotation * 3 + i * Math.PI / 4;
+            ctx.beginPath();
+            for (let t = 0; t <= 1; t += 0.05) {
+                const angle = startAngle + t * Math.PI * 2;
+                const y = topY + t * this.height;
+                const radius = (this.width / 2) * (1 - t * 0.7);
+                const x = cx + Math.cos(angle) * radius;
+                if (t === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+        }
+
+        // Draw spinning debris
+        for (const d of this.debris) {
+            d.angle += d.speed;
+            const t = d.y / this.height;
+            const radius = (this.width / 2) * (1 - t * 0.7) * (d.dist / (this.width * 0.6));
+            const dx = cx + Math.cos(d.angle) * radius;
+            const dy = topY + d.y + Math.sin(this.rotation * 2) * 3;
 
             ctx.save();
-            ctx.translate(0, layerY);
-            ctx.rotate(this.rotation + i * 0.4);
+            ctx.translate(dx, dy);
+            ctx.rotate(d.angle * 2);
 
-            // Funnel oval
-            ctx.beginPath();
-            ctx.ellipse(0, 0, layerWidth / 2, 8, 0, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(80, 80, 100, ${alpha})`;
-            ctx.fill();
-            ctx.strokeStyle = `rgba(60, 60, 80, ${alpha})`;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
+            if (d.type === 0) {
+                // Leaf - green/brown
+                ctx.fillStyle = `rgba(${80 + Math.random() * 40}, ${100 + Math.random() * 50}, 60, 0.8)`;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, d.size, d.size / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (d.type === 1) {
+                // Dirt chunk - brown
+                ctx.fillStyle = `rgba(${100 + Math.random() * 30}, ${70 + Math.random() * 20}, 50, 0.9)`;
+                ctx.fillRect(-d.size / 2, -d.size / 2, d.size, d.size);
+            } else {
+                // Twig - dark brown line
+                ctx.strokeStyle = 'rgba(80, 50, 30, 0.9)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-d.size, 0);
+                ctx.lineTo(d.size, 0);
+                ctx.stroke();
+            }
             ctx.restore();
         }
 
-        // Debris particles spinning around
-        ctx.fillStyle = 'rgba(100, 80, 60, 0.8)';
-        for (let i = 0; i < 12; i++) {
-            const angle = this.rotation * 2 + i * Math.PI / 6;
-            const dist = this.width * 0.3 + Math.sin(this.rotation * 3 + i) * 10;
-            const py = -this.height / 2 + (i % 6) * this.height / 5;
-            const px = Math.cos(angle) * dist;
-            ctx.fillRect(px - 2, py - 2, 4, 4);
+        // Draw dust cloud at base
+        for (let i = 0; i < 5; i++) {
+            const angle = this.rotation + i * Math.PI / 2.5;
+            const dist = 15 + Math.sin(this.rotation * 2 + i) * 10;
+            const dustX = cx + Math.cos(angle) * dist;
+            const dustY = baseY + Math.sin(angle) * 5;
+            const dustSize = 10 + Math.sin(this.rotation + i) * 5;
+
+            ctx.beginPath();
+            ctx.arc(dustX, dustY, dustSize, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(139, 119, 101, 0.4)';
+            ctx.fill();
         }
 
         ctx.restore();
 
-        // Warning label
+        // Warning label with bigger text
         ctx.fillStyle = '#FF4444';
-        ctx.font = 'bold 14px Arial';
+        ctx.font = 'bold 20px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('🌪️ TORNADO!', cx, this.y - 10);
+        ctx.fillText('🌪️ TORNADO! 🌪️', cx, this.y - 15);
         ctx.textAlign = 'left';
     }
 }
@@ -1528,8 +1786,12 @@ class Player {
 
         if (this.animal === 'walrus') {
             this.drawWalrus();
-        } else {
+        } else if (this.animal === 'penguin') {
             this.drawPenguin();
+        } else if (this.animal === 'bear') {
+            this.drawBear();
+        } else if (this.animal === 'fox') {
+            this.drawFox();
         }
 
         // Reset filter
@@ -1721,6 +1983,196 @@ class Player {
         ctx.fill();
         ctx.beginPath();
         ctx.ellipse(cx + 5, this.y + this.size - 3, 5, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    drawBear() {
+        const cx = this.x + this.size / 2;
+        const cy = this.y + this.size / 2;
+
+        // Body (brown)
+        ctx.fillStyle = '#8B4513';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + 2, this.size / 2, this.size / 2.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Lighter belly
+        ctx.fillStyle = '#CD853F';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + 5, this.size / 3, this.size / 3.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Head
+        ctx.fillStyle = '#8B4513';
+        ctx.beginPath();
+        ctx.arc(cx, this.y + 10, 11, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Ears
+        ctx.fillStyle = '#8B4513';
+        ctx.beginPath();
+        ctx.arc(cx - 9, this.y + 4, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 9, this.y + 4, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner ears
+        ctx.fillStyle = '#CD853F';
+        ctx.beginPath();
+        ctx.arc(cx - 9, this.y + 4, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 9, this.y + 4, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Muzzle
+        ctx.fillStyle = '#CD853F';
+        ctx.beginPath();
+        ctx.ellipse(cx, this.y + 14, 6, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Nose
+        ctx.fillStyle = '#2F1810';
+        ctx.beginPath();
+        ctx.ellipse(cx, this.y + 12, 3, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eyes
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(cx - 5, this.y + 9, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 5, this.y + 9, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eye shine
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(cx - 4, this.y + 8, 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 6, this.y + 8, 1, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Smile
+        ctx.strokeStyle = '#2F1810';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, this.y + 15, 3, 0.2, Math.PI - 0.2);
+        ctx.stroke();
+
+        // Paws
+        ctx.fillStyle = '#8B4513';
+        ctx.beginPath();
+        ctx.ellipse(cx - 8, this.y + this.size - 4, 5, 4, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(cx + 8, this.y + this.size - 4, 5, 4, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    drawFox() {
+        const cx = this.x + this.size / 2;
+        const cy = this.y + this.size / 2;
+
+        // Body (orange)
+        ctx.fillStyle = '#FF6B35';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + 2, this.size / 2.2, this.size / 2.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // White belly/chest
+        ctx.fillStyle = '#FFFEF0';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + 6, this.size / 3.5, this.size / 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Tail (fluffy, behind body)
+        ctx.fillStyle = '#FF6B35';
+        ctx.beginPath();
+        ctx.ellipse(cx + 12, cy + 5, 8, 5, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        // White tail tip
+        ctx.fillStyle = '#FFFEF0';
+        ctx.beginPath();
+        ctx.ellipse(cx + 17, cy + 3, 4, 3, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Head
+        ctx.fillStyle = '#FF6B35';
+        ctx.beginPath();
+        ctx.arc(cx, this.y + 10, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Ears (pointy triangles)
+        ctx.fillStyle = '#FF6B35';
+        ctx.beginPath();
+        ctx.moveTo(cx - 10, this.y + 6);
+        ctx.lineTo(cx - 6, this.y - 3);
+        ctx.lineTo(cx - 2, this.y + 8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cx + 10, this.y + 6);
+        ctx.lineTo(cx + 6, this.y - 3);
+        ctx.lineTo(cx + 2, this.y + 8);
+        ctx.closePath();
+        ctx.fill();
+
+        // Inner ears (black)
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.moveTo(cx - 9, this.y + 5);
+        ctx.lineTo(cx - 6, this.y);
+        ctx.lineTo(cx - 3, this.y + 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cx + 9, this.y + 5);
+        ctx.lineTo(cx + 6, this.y);
+        ctx.lineTo(cx + 3, this.y + 6);
+        ctx.closePath();
+        ctx.fill();
+
+        // White face markings
+        ctx.fillStyle = '#FFFEF0';
+        ctx.beginPath();
+        ctx.ellipse(cx, this.y + 14, 6, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Nose (black)
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.ellipse(cx, this.y + 12, 2.5, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eyes (almond shaped, sly look)
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.ellipse(cx - 5, this.y + 9, 2.5, 2, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(cx + 5, this.y + 9, 2.5, 2, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eye shine
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(cx - 4, this.y + 8, 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 6, this.y + 8, 1, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Paws (black)
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.ellipse(cx - 6, this.y + this.size - 3, 4, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(cx + 6, this.y + this.size - 3, 4, 3, 0, 0, Math.PI * 2);
         ctx.fill();
     }
 
@@ -2515,6 +2967,16 @@ function gameLoop() {
         // Check tag collision
         checkTagCollision();
 
+        // Check vent collisions
+        for (let i = 0; i < players.length; i++) {
+            checkVentCollision(players[i], i);
+        }
+
+        // Update vent cooldowns
+        for (let i = 0; i < ventCooldown.length; i++) {
+            if (ventCooldown[i] > 0) ventCooldown[i] -= 16;
+        }
+
         // Wall shift timer - every 3rd shift is a disaster
         if (Date.now() - wallShiftTimer > WALL_SHIFT_INTERVAL) {
             wallShiftCount++;
@@ -2574,6 +3036,9 @@ function gameLoop() {
     }
 
     drawMaze();
+
+    // Draw vents
+    drawVents();
 
     for (const powerup of powerups) {
         powerup.draw();
