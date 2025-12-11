@@ -1105,60 +1105,28 @@ class Cat {
             return;
         }
 
-        // Use BFS pathfinding to find the best direction toward the player
-        const catCol = Math.floor((this.x + this.size / 2) / CELL_SIZE);
-        const catRow = Math.floor((this.y + this.size / 2) / CELL_SIZE);
-        const playerCol = Math.floor((closestPlayer.x + closestPlayer.size / 2) / CELL_SIZE);
-        const playerRow = Math.floor((closestPlayer.y + closestPlayer.size / 2) / CELL_SIZE);
-
-        // BFS to find path
-        const queue = [[playerRow, playerCol, null]]; // Start from player, work backwards
-        const visited = new Set();
-        visited.add(`${playerRow},${playerCol}`);
-        const cameFrom = {}; // Track where we came from
-
-        while (queue.length > 0) {
-            const [row, col, firstMove] = queue.shift();
-
-            // If we reached the cat's position, use the first move
-            if (row === catRow && col === catCol) {
-                if (firstMove) {
-                    this.direction = firstMove;
-                }
-                return;
-            }
-
-            // Check all 4 directions
-            const dirs = [
-                {dr: -1, dc: 0, move: {dx: 0, dy: 1}},   // Up (player came from below)
-                {dr: 1, dc: 0, move: {dx: 0, dy: -1}},   // Down (player came from above)
-                {dr: 0, dc: -1, move: {dx: 1, dy: 0}},   // Left (player came from right)
-                {dr: 0, dc: 1, move: {dx: -1, dy: 0}}    // Right (player came from left)
-            ];
-
-            for (const {dr, dc, move} of dirs) {
-                const newRow = row + dr;
-                const newCol = col + dc;
-                const key = `${newRow},${newCol}`;
-
-                if (newRow >= 0 && newRow < ROWS && newCol >= 0 && newCol < COLS &&
-                    maze[newRow][newCol] === 0 && !visited.has(key)) {
-                    visited.add(key);
-                    // The first move is what direction the cat should go
-                    // Since we're going backwards from player, the move is inverted
-                    const nextFirstMove = firstMove || move;
-                    queue.push([newRow, newCol, nextFirstMove]);
-                }
-            }
-        }
-
-        // No path found, try direct approach as fallback
+        // Simple direction toward player (no BFS - too slow)
         const dx = (closestPlayer.x + closestPlayer.size / 2) - (this.x + this.size / 2);
         const dy = (closestPlayer.y + closestPlayer.size / 2) - (this.y + this.size / 2);
+
+        // Try to move toward player, prefer the axis with greater distance
         if (Math.abs(dx) > Math.abs(dy)) {
-            this.direction = { dx: dx > 0 ? 1 : -1, dy: 0 };
+            const newDir = { dx: dx > 0 ? 1 : -1, dy: 0 };
+            // Check if we can move that way
+            if (this.canMoveTo(this.x + newDir.dx * this.speed * 2, this.y)) {
+                this.direction = newDir;
+            } else {
+                // Try vertical instead
+                this.direction = { dx: 0, dy: dy > 0 ? 1 : -1 };
+            }
         } else {
-            this.direction = { dx: 0, dy: dy > 0 ? 1 : -1 };
+            const newDir = { dx: 0, dy: dy > 0 ? 1 : -1 };
+            if (this.canMoveTo(this.x, this.y + newDir.dy * this.speed * 2)) {
+                this.direction = newDir;
+            } else {
+                // Try horizontal instead
+                this.direction = { dx: dx > 0 ? 1 : -1, dy: 0 };
+            }
         }
     }
 
@@ -1462,37 +1430,26 @@ class Player {
     }
 
     ejectFromWall() {
-        // Find nearest free space using BFS for more reliable ejection
+        // Find nearest free space with simple expanding search
         const startCol = Math.floor((this.x + this.size / 2) / CELL_SIZE);
         const startRow = Math.floor((this.y + this.size / 2) / CELL_SIZE);
 
-        const queue = [[startRow, startCol]];
-        const visited = new Set();
-        visited.add(`${startRow},${startCol}`);
-
-        while (queue.length > 0) {
-            const [row, col] = queue.shift();
-
-            // Check if this cell is free
-            const testX = col * CELL_SIZE + (CELL_SIZE - this.size) / 2;
-            const testY = row * CELL_SIZE + (CELL_SIZE - this.size) / 2;
-
-            if (this.canMoveTo(testX, testY)) {
-                this.x = testX;
-                this.y = testY;
-                playSound('teleport'); // Sound effect for ejection
-                return;
-            }
-
-            // Add neighbors to queue
-            const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-            for (const [dr, dc] of dirs) {
-                const nr = row + dr;
-                const nc = col + dc;
-                const key = `${nr},${nc}`;
-                if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && !visited.has(key)) {
-                    visited.add(key);
-                    queue.push([nr, nc]);
+        // Search in expanding radius
+        for (let radius = 0; radius <= 5; radius++) {
+            for (let dr = -radius; dr <= radius; dr++) {
+                for (let dc = -radius; dc <= radius; dc++) {
+                    const row = startRow + dr;
+                    const col = startCol + dc;
+                    if (row >= 0 && row < ROWS && col >= 0 && col < COLS) {
+                        const testX = col * CELL_SIZE + (CELL_SIZE - this.size) / 2;
+                        const testY = row * CELL_SIZE + (CELL_SIZE - this.size) / 2;
+                        if (this.canMoveTo(testX, testY)) {
+                            this.x = testX;
+                            this.y = testY;
+                            playSound('teleport');
+                            return;
+                        }
+                    }
                 }
             }
         }
@@ -2308,36 +2265,10 @@ function drawMaze() {
     }
 }
 
-// Check if a cell is reachable from player spawn areas using BFS
+// Simple check - just verify the cell is an open path
 function isReachableFromSpawn(targetRow, targetCol) {
-    // Check reachability from player 1's spawn area
-    const startRow = 2, startCol = 2;
-
-    const queue = [[startRow, startCol]];
-    const visited = new Set();
-    visited.add(`${startRow},${startCol}`);
-
-    while (queue.length > 0) {
-        const [row, col] = queue.shift();
-
-        if (row === targetRow && col === targetCol) return true;
-
-        const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-        for (const [dr, dc] of directions) {
-            const newRow = row + dr;
-            const newCol = col + dc;
-            const key = `${newRow},${newCol}`;
-
-            if (newRow >= 0 && newRow < ROWS &&
-                newCol >= 0 && newCol < COLS &&
-                maze[newRow][newCol] === 0 &&
-                !visited.has(key)) {
-                visited.add(key);
-                queue.push([newRow, newCol]);
-            }
-        }
-    }
-    return false;
+    // Since we ensure connectivity, any open path should be reachable
+    return maze[targetRow][targetCol] === 0;
 }
 
 function spawnPowerup() {
