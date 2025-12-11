@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jungle Maze Tag</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a4d1a 0%, #0d260d 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 10px;
+            font-family: 'Courier New', monospace;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        h1 {
+            color: #90EE90;
+            text-shadow: 3px 3px 6px #000, 0 0 20px #228B22;
+            margin-bottom: 8px;
+            font-size: 2em;
+            letter-spacing: 3px;
+        }
+
+        #gameContainer {
+            position: relative;
+            border: 8px solid #4a2810;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 100, 0, 0.5), inset 0 0 50px rgba(0, 50, 0, 0.3);
+            background: #2d5a27;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #2d5a27;
+        }
+
+        #ui {
+            display: flex;
+            gap: 30px;
+            margin-top: 8px;
+            color: #90EE90;
+            font-size: 14px;
+        }
+
+        .player-info {
+            background: rgba(0, 50, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 2px solid #228B22;
+        }
+
+        .player-info h3 {
+            margin-bottom: 5px;
+            text-align: center;
+        }
+
+        .powerup-status {
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        #instructions {
+            color: #98FB98;
+            margin-top: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 11px;
+            opacity: 0.8;
+        }
+
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: #FFD700;
+            text-shadow: 3px 3px 6px #000, 0 0 30px #FFA500;
+            display: none;
+            z-index: 100;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 30px 50px;
+            border-radius: 20px;
+            border: 4px solid #FFD700;
+        }
+
+        #restartBtn {
+            margin-top: 20px;
+            padding: 10px 30px;
+            font-size: 20px;
+            background: #228B22;
+            color: white;
+            border: 3px solid #90EE90;
+            border-radius: 10px;
+            cursor: pointer;
+            display: none;
+        }
+
+        #restartBtn:hover {
+            background: #32CD32;
+        }
+
+        .vine {
+            position: fixed;
+            width: 30px;
+            background: linear-gradient(90deg, #228B22, #32CD32, #228B22);
+            opacity: 0.6;
+            z-index: -1;
+        }
+
+        #tagNotification {
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 36px;
+            color: #FF4444;
+            text-shadow: 2px 2px 4px #000, 0 0 20px #FF0000;
+            display: none;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 30px;
+            border-radius: 15px;
+            border: 3px solid #FF4444;
+            transition: opacity 0.5s;
+        }
+
+        .score {
+            font-size: 16px;
+            color: #FFD700;
+            margin-top: 5px;
+        }
+
+        #controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .game-btn {
+            padding: 8px 20px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            background: #228B22;
+            color: white;
+            border: 2px solid #90EE90;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .game-btn:hover {
+            background: #32CD32;
+        }
+
+        .game-btn.muted {
+            background: #8B0000;
+            border-color: #FF6666;
+        }
+
+        .game-btn.muted:hover {
+            background: #A52A2A;
+        }
+
+        #powerup-toggles {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .toggle-label {
+            color: #90EE90;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+
+        .powerup-toggle {
+            padding: 5px 10px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            background: #555;
+            color: #999;
+            border: 2px solid #666;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0.5;
+        }
+
+        .powerup-toggle.active {
+            background: #228B22;
+            color: white;
+            border-color: #90EE90;
+            opacity: 1;
+        }
+
+        .powerup-toggle:hover {
+            transform: scale(1.05);
+        }
+
+        .powerup-toggle.active:hover {
+            background: #32CD32;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌴 JUNGLE MAZE TAG 🌴</h1>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="tagNotification"></div>
+        <div id="message">
+            <div id="winText"></div>
+            <button id="restartBtn" onclick="restartGame()">Play Again</button>
+        </div>
+    </div>
+    <div id="ui">
+        <div class="player-info" id="player1Info">
+            <h3>🦭 Walrus (WASD)</h3>
+            <div class="score" id="p1Score">Survives: 0</div>
+            <div class="powerup-status" id="p1Status">No active powerups</div>
+        </div>
+        <div class="player-info" id="player2Info">
+            <h3>🐧 Penguin (Arrows)</h3>
+            <div class="score" id="p2Score">Survives: 0</div>
+            <div class="powerup-status" id="p2Status">No active powerups</div>
+        </div>
+    </div>
+    <div id="controls">
+        <button class="game-btn" id="resetBtn" onclick="restartGame()">Reset Game</button>
+        <button class="game-btn" id="muteBtn" onclick="toggleMusic()">Mute Music</button>
+    </div>
+    <div id="powerup-toggles">
+        <span class="toggle-label">Powerups:</span>
+        <button class="powerup-toggle active" id="toggleRat" onclick="togglePowerup('rat')">🐀 Rat</button>
+        <button class="powerup-toggle active" id="toggleGhost" onclick="togglePowerup('ghost')">👻 Ghost</button>
+        <button class="powerup-toggle active" id="toggleMonkey" onclick="togglePowerup('monkey')">🐒 Monkey</button>
+        <button class="powerup-toggle active" id="togglePolarbear" onclick="togglePowerup('polarbear')">🐻‍❄️ Polar Bear</button>
+        <button class="powerup-toggle active" id="toggleBomb" onclick="togglePowerup('bomb')">💣 Bomb</button>
+    </div>
+    <div id="instructions">
+        <p>🐀 Rat = Teleport | 👻 Ghost = Invisible 10s | 🐒 Monkey = 5 walls (8s) | 🐻‍❄️ Polar Bear = Freeze 3s | 💣 Bomb = 5x5 blast</p>
+        <p>The player who is "IT" must tag the other! IT is faster! When tagged, roles swap and tagger goes to spawn!</p>
+        <p>Walls shift every 8 seconds! Survive shifts without being tagged to score! First to 10 wins!</p>
+        <p>Watch out for 🐱 MAZZI the cat! She chases you around. If caught, you teleport to spawn!</p>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
