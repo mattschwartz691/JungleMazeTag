@@ -253,12 +253,15 @@
         <button class="powerup-toggle active" id="toggleMonkey" onclick="togglePowerup('monkey')">🐒 Monkey</button>
         <button class="powerup-toggle active" id="togglePolarbear" onclick="togglePowerup('polarbear')">🐻‍❄️ Polar Bear</button>
         <button class="powerup-toggle active" id="toggleBomb" onclick="togglePowerup('bomb')">💣 Bomb</button>
+        <span class="toggle-label" style="margin-left: 15px;">Enemy:</span>
+        <button class="powerup-toggle" id="toggleMazzi" onclick="toggleMazzi()">🐱 Mazzi</button>
     </div>
     <div id="instructions">
         <p>🐀 Rat = Teleport | 👻 Ghost = Invisible 10s | 🐒 Monkey = 5 walls (8s) | 🐻‍❄️ Polar Bear = Freeze 3s | 💣 Bomb = 5x5 blast</p>
         <p>The player who is "IT" must tag the other! IT is faster! When tagged, roles swap and tagger goes to spawn!</p>
         <p>Walls shift every 8 seconds! Survive shifts without being tagged to score! First to 10 wins!</p>
-        <p>Watch out for 🐱 MAZZI the cat! She chases you around. If caught, you teleport to spawn!</p>
+        <p>🌋 EARTHQUAKE destroys all walls! 🌊 TSUNAMI - get to GREEN safe zones in 10 seconds or lose a point!</p>
+        <p>Toggle 🐱 MAZZI the cat above! She chases you around. If caught, you teleport to spawn!</p>
     </div>
 
     <script src="game.js"></script>

@@ -642,6 +642,21 @@ let survivedSinceLastTag = [true, true]; // Track if player survived since last 
 
 // Cat enemy
 let cat = null;
+let mazziEnabled = false; // Mazzi toggle - off by default
+
+function toggleMazzi() {
+    mazziEnabled = !mazziEnabled;
+    const btn = document.getElementById('toggleMazzi');
+    if (btn) {
+        btn.classList.toggle('active', mazziEnabled);
+    }
+    // Create or remove cat based on toggle
+    if (mazziEnabled && !cat) {
+        cat = new Cat();
+    } else if (!mazziEnabled) {
+        cat = null;
+    }
+}
 
 // Tornado system
 let tornado = null;
@@ -652,6 +667,152 @@ let lastTornadoSpawn = 0;
 let earthquakeActive = false;
 let earthquakeShakeTime = 0;
 const EARTHQUAKE_CHANCE = 0.15; // 15% chance on each wall shift
+
+// Tsunami system
+let tsunamiActive = false;
+let tsunamiStartTime = 0;
+let tsunamiSafeSpots = []; // Array of {row, col} safe spots
+const TSUNAMI_DURATION = 10000; // 10 seconds to reach safety
+const TSUNAMI_SAFE_SPOT_COUNT = 3; // Number of safe spots
+
+// Random disaster system
+const DISASTER_INTERVAL = 15000; // Random disaster every 15 seconds
+let lastDisasterTime = 0;
+
+function triggerRandomDisaster() {
+    // Don't trigger if another disaster is active
+    if (earthquakeActive || tsunamiActive) return;
+
+    const disasterType = Math.floor(Math.random() * 2); // 0 = earthquake, 1 = tsunami
+
+    switch (disasterType) {
+        case 0:
+            triggerEarthquake();
+            break;
+        case 1:
+            triggerTsunami();
+            break;
+    }
+}
+
+function triggerTsunami() {
+    tsunamiActive = true;
+    tsunamiStartTime = Date.now();
+    tsunamiSafeSpots = [];
+
+    // Pick random safe spots (must be open path spaces)
+    const openSpaces = [];
+    for (let row = 2; row < ROWS - 2; row++) {
+        for (let col = 2; col < COLS - 2; col++) {
+            if (maze[row][col] === 0) {
+                // Avoid spawn areas
+                if (!(col < 5 && row < 5) && !(col > COLS - 6 && row > ROWS - 6)) {
+                    openSpaces.push({row, col});
+                }
+            }
+        }
+    }
+
+    // Shuffle and pick safe spots
+    for (let i = openSpaces.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [openSpaces[i], openSpaces[j]] = [openSpaces[j], openSpaces[i]];
+    }
+
+    tsunamiSafeSpots = openSpaces.slice(0, TSUNAMI_SAFE_SPOT_COUNT);
+
+    playTsunamiWarningSound();
+}
+
+function updateTsunami() {
+    if (!tsunamiActive) return;
+
+    const elapsed = Date.now() - tsunamiStartTime;
+
+    if (elapsed >= TSUNAMI_DURATION) {
+        // Time's up! Check if players are safe
+        for (let i = 0; i < players.length; i++) {
+            const player = players[i];
+            const playerCol = Math.floor((player.x + player.size / 2) / CELL_SIZE);
+            const playerRow = Math.floor((player.y + player.size / 2) / CELL_SIZE);
+
+            let isSafe = false;
+            for (const spot of tsunamiSafeSpots) {
+                if (spot.row === playerRow && spot.col === playerCol) {
+                    isSafe = true;
+                    break;
+                }
+            }
+
+            if (!isSafe) {
+                // Player hit by tsunami - lose a point and respawn
+                scores[i] = Math.max(0, scores[i] - 1);
+                player.teleportToSpawn();
+                playSound('tag');
+                updateScoreDisplay();
+            }
+        }
+
+        // End tsunami
+        tsunamiActive = false;
+        tsunamiSafeSpots = [];
+        playTsunamiHitSound();
+    }
+}
+
+function playTsunamiWarningSound() {
+    if (!audioCtx) return;
+
+    // Rising alarm sound
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+    osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.5);
+    osc.frequency.linearRampToValueAtTime(200, audioCtx.currentTime + 1);
+    osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 1.5);
+    osc.type = 'sawtooth';
+
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 2);
+
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 2);
+}
+
+function playTsunamiHitSound() {
+    if (!audioCtx) return;
+
+    // Crash/wave sound
+    const bufferSize = audioCtx.sampleRate * 1;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 0.5);
+    }
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+    filter.frequency.linearRampToValueAtTime(200, audioCtx.currentTime + 1);
+
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    source.start();
+}
 
 class Tornado {
     constructor() {
@@ -2049,10 +2210,21 @@ function shiftWalls() {
         return; // Skip normal wall shift
     }
 
-    // Random chance for earthquake
-    if (Math.random() < EARTHQUAKE_CHANCE) {
-        triggerEarthquake();
-        return; // Earthquake destroys walls, next shift will rebuild
+    // Don't trigger disasters during tsunami
+    if (tsunamiActive) {
+        // Normal wall shift during tsunami
+    } else {
+        // Random chance for earthquake
+        if (Math.random() < EARTHQUAKE_CHANCE) {
+            triggerEarthquake();
+            return; // Earthquake destroys walls, next shift will rebuild
+        }
+
+        // Random chance for tsunami
+        if (Math.random() < TSUNAMI_CHANCE) {
+            triggerTsunami();
+            // Continue with normal wall shift
+        }
     }
 
     // Shift walls by opening some and closing others (maintaining maze structure)
@@ -2440,10 +2612,13 @@ function initGame() {
     ];
 
     powerups = [];
-    cat = new Cat(); // Create the cat enemy
+    cat = mazziEnabled ? new Cat() : null; // Create the cat enemy if enabled
+    tsunamiActive = false;
+    tsunamiSafeSpots = [];
     gameOver = false;
     wallShiftTimer = Date.now();
     lastPowerupSpawn = Date.now();
+    lastDisasterTime = Date.now();
     itPlayerIndex = Math.random() > 0.5 ? 0 : 1; // Random starting "it"
     scores = [0, 0];
     tagCooldown = 0;
@@ -2497,6 +2672,12 @@ function gameLoop() {
             lastPowerupSpawn = Date.now();
         }
 
+        // Random disaster timer
+        if (Date.now() - lastDisasterTime > DISASTER_INTERVAL) {
+            triggerRandomDisaster();
+            lastDisasterTime = Date.now();
+        }
+
         // Update powerup status display periodically
         if (Math.random() < 0.1) {
             updatePowerupStatus();
@@ -2504,6 +2685,9 @@ function gameLoop() {
 
         // Update explosion particles
         updateExplosions();
+
+        // Update tsunami
+        updateTsunami();
 
         // Update music tempo based on player distance (only for Jungle Chase track)
         if (currentMusicTrack === 1) {
@@ -2568,9 +2752,69 @@ function gameLoop() {
         ctx.textAlign = 'left';
     }
 
+    // Draw tsunami warning and safe zones
+    if (tsunamiActive) {
+        const elapsed = Date.now() - tsunamiStartTime;
+        const timeLeft = Math.ceil((TSUNAMI_DURATION - elapsed) / 1000);
+
+        // Red overlay on danger zones (entire map)
+        ctx.fillStyle = 'rgba(0, 100, 200, 0.2)';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // Highlight ALL cells - red for danger, green for safe
+        for (let row = 1; row < ROWS - 1; row++) {
+            for (let col = 1; col < COLS - 1; col++) {
+                if (maze[row][col] === 0) { // Only highlight paths
+                    let isSafe = false;
+                    for (const spot of tsunamiSafeSpots) {
+                        if (spot.row === row && spot.col === col) {
+                            isSafe = true;
+                            break;
+                        }
+                    }
+
+                    if (isSafe) {
+                        // Green safe zone - pulsing
+                        const pulse = 0.5 + Math.sin(Date.now() / 100) * 0.3;
+                        ctx.fillStyle = `rgba(0, 255, 0, ${pulse})`;
+                        ctx.fillRect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                        // Draw safe icon
+                        ctx.fillStyle = '#000';
+                        ctx.font = 'bold 16px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('✓', col * CELL_SIZE + CELL_SIZE / 2, row * CELL_SIZE + CELL_SIZE / 2 + 5);
+                    } else {
+                        // Red danger zone
+                        ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                        ctx.fillRect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    }
+                }
+            }
+        }
+
+        // Big countdown timer
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(CANVAS_WIDTH / 2 - 100, 40, 200, 100);
+
+        ctx.fillStyle = timeLeft <= 3 ? '#FF0000' : '#FFFFFF';
+        ctx.font = 'bold 72px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(timeLeft.toString(), CANVAS_WIDTH / 2, 115);
+
+        ctx.fillStyle = '#00BFFF';
+        ctx.font = 'bold 20px Arial';
+        ctx.fillText('🌊 TSUNAMI INCOMING! 🌊', CANVAS_WIDTH / 2, 160);
+
+        ctx.font = 'bold 14px Arial';
+        ctx.fillStyle = '#00FF00';
+        ctx.fillText('Get to a GREEN safe zone!', CANVAS_WIDTH / 2, 180);
+
+        ctx.textAlign = 'left';
+    }
+
     // Draw wall shift warning
     const timeToShift = WALL_SHIFT_INTERVAL - (Date.now() - wallShiftTimer);
-    if (timeToShift < 2000 && !earthquakeActive) {
+    if (timeToShift < 2000 && !earthquakeActive && !tsunamiActive) {
         ctx.fillStyle = `rgba(255, 0, 0, ${(2000 - timeToShift) / 4000})`;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         ctx.fillStyle = '#fff';
