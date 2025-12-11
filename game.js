@@ -2228,10 +2228,10 @@ function shiftWalls() {
     }
 
     // Shift walls by opening some and closing others (maintaining maze structure)
-    // Much more dramatic shifts - change a significant portion of the maze
+    // Moderate shifts - change a portion of the maze while keeping it playable
 
-    // Open many walls (create new passages) - more dramatic!
-    for (let i = 0; i < 40; i++) {
+    // Open some walls (create new passages)
+    for (let i = 0; i < 25; i++) {
         const row = Math.floor(Math.random() * (ROWS - 4)) + 2;
         const col = Math.floor(Math.random() * (COLS - 4)) + 2;
 
@@ -2252,8 +2252,8 @@ function shiftWalls() {
         }
     }
 
-    // Close many paths (but not if it would block the route) - more dramatic!
-    for (let i = 0; i < 35; i++) {
+    // Close some paths (but not if it would block the route)
+    for (let i = 0; i < 20; i++) {
         const row = Math.floor(Math.random() * (ROWS - 4)) + 2;
         const col = Math.floor(Math.random() * (COLS - 4)) + 2;
 
@@ -2302,19 +2302,35 @@ function shiftWalls() {
 
     // Make sure players aren't stuck in walls
     for (const player of players) {
-        let attempts = 0;
-        while (!player.canMoveTo(player.x, player.y) && attempts < 100) {
-            // Find nearby free space
-            for (let dx = -CELL_SIZE; dx <= CELL_SIZE; dx += CELL_SIZE) {
-                for (let dy = -CELL_SIZE; dy <= CELL_SIZE; dy += CELL_SIZE) {
-                    if (player.canMoveTo(player.x + dx, player.y + dy)) {
-                        player.x += dx;
-                        player.y += dy;
-                        break;
+        if (!player.canMoveTo(player.x, player.y)) {
+            let found = false;
+            // Search in expanding radius
+            for (let radius = 1; radius <= 10 && !found; radius++) {
+                for (let dx = -radius; dx <= radius && !found; dx++) {
+                    for (let dy = -radius; dy <= radius && !found; dy++) {
+                        const newX = player.x + dx * CELL_SIZE;
+                        const newY = player.y + dy * CELL_SIZE;
+                        if (player.canMoveTo(newX, newY)) {
+                            player.x = newX;
+                            player.y = newY;
+                            found = true;
+                        }
                     }
                 }
             }
-            attempts++;
+            // If still stuck, teleport to spawn
+            if (!found) {
+                player.teleportToSpawn();
+            }
+        }
+    }
+
+    // Also make sure cat isn't stuck in walls
+    if (cat) {
+        const catCol = Math.floor((cat.x + cat.size / 2) / CELL_SIZE);
+        const catRow = Math.floor((cat.y + cat.size / 2) / CELL_SIZE);
+        if (catRow >= 0 && catRow < ROWS && catCol >= 0 && catCol < COLS && maze[catRow][catCol] === 1) {
+            cat.respawn();
         }
     }
 
