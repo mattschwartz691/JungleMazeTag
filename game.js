@@ -2487,14 +2487,15 @@ function initGame() {
 }
 
 function gameLoop() {
+    try {
     if (!gameOver) {
         // Update
         for (const player of players) {
-            player.update();
+            if (player) player.update();
         }
 
         for (const powerup of powerups) {
-            powerup.update();
+            if (powerup) powerup.update();
         }
 
         // Update cat enemy
@@ -2504,8 +2505,9 @@ function gameLoop() {
 
         // Check powerup collisions
         for (let i = powerups.length - 1; i >= 0; i--) {
+            if (!powerups[i]) continue;
             for (const player of players) {
-                if (powerups[i].collidesWith(player)) {
+                if (powerups[i] && powerups[i].collidesWith(player)) {
                     applyPowerup(player, powerups[i].type);
                     powerups.splice(i, 1);
                     break;
@@ -2681,6 +2683,10 @@ function gameLoop() {
     }
 
     requestAnimationFrame(gameLoop);
+    } catch (e) {
+        console.error('Game loop error:', e);
+        requestAnimationFrame(gameLoop); // Keep running even if error
+    }
 }
 
 // Event listeners
