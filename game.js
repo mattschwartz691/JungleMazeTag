@@ -643,6 +643,227 @@ let survivedSinceLastTag = [true, true]; // Track if player survived since last 
 // Cat enemy
 let cat = null;
 
+// Tornado system
+let tornado = null;
+const TORNADO_SPAWN_INTERVAL = 15000; // Tornado every 15 seconds
+let lastTornadoSpawn = 0;
+
+// Earthquake system
+let earthquakeActive = false;
+let earthquakeShakeTime = 0;
+const EARTHQUAKE_CHANCE = 0.15; // 15% chance on each wall shift
+
+class Tornado {
+    constructor() {
+        this.height = CELL_SIZE * 3; // 3 cells tall
+        this.width = CELL_SIZE * 2;
+        this.speed = 4;
+        this.rotation = 0;
+
+        // Start from left or right side, go horizontally through center
+        const centerRow = Math.floor(ROWS / 2);
+        this.y = centerRow * CELL_SIZE - this.height / 2 + CELL_SIZE / 2;
+
+        // Random direction: left to right or right to left
+        if (Math.random() > 0.5) {
+            this.x = -this.width;
+            this.direction = 1; // Moving right
+        } else {
+            this.x = CANVAS_WIDTH + this.width;
+            this.direction = -1; // Moving left
+        }
+
+        playTornadoSound();
+    }
+
+    update() {
+        // Move horizontally
+        this.x += this.speed * this.direction;
+        this.rotation += 0.3;
+
+        // Check collision with players
+        for (let i = 0; i < players.length; i++) {
+            const player = players[i];
+            const playerCenterX = player.x + player.size / 2;
+            const playerCenterY = player.y + player.size / 2;
+
+            // Check if player is within tornado bounds
+            if (playerCenterX > this.x - this.width / 2 &&
+                playerCenterX < this.x + this.width / 2 &&
+                playerCenterY > this.y &&
+                playerCenterY < this.y + this.height) {
+                // Player hit by tornado - lose a point and respawn
+                scores[i] = Math.max(0, scores[i] - 1);
+                player.teleportToSpawn();
+                playSound('tag');
+                updateScoreDisplay();
+            }
+        }
+
+        // Destroy walls in path
+        const startRow = Math.floor(this.y / CELL_SIZE);
+        const endRow = Math.floor((this.y + this.height) / CELL_SIZE);
+        const col = Math.floor(this.x / CELL_SIZE);
+
+        for (let row = startRow; row <= endRow; row++) {
+            if (row > 0 && row < ROWS - 1 && col > 0 && col < COLS - 1) {
+                if (maze[row][col] === 1) {
+                    maze[row][col] = 0; // Destroy wall
+                }
+            }
+        }
+
+        // Check if off screen
+        if (this.direction === 1 && this.x > CANVAS_WIDTH + this.width) {
+            return false; // Remove tornado
+        }
+        if (this.direction === -1 && this.x < -this.width) {
+            return false; // Remove tornado
+        }
+        return true;
+    }
+
+    draw() {
+        const cx = this.x;
+        const cy = this.y + this.height / 2;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        // Draw tornado funnel (multiple spinning layers)
+        for (let i = 0; i < 6; i++) {
+            const layerY = -this.height / 2 + (i * this.height / 5);
+            const layerWidth = this.width * (0.3 + (i * 0.14));
+            const alpha = 0.7 - i * 0.08;
+
+            ctx.save();
+            ctx.translate(0, layerY);
+            ctx.rotate(this.rotation + i * 0.4);
+
+            // Funnel oval
+            ctx.beginPath();
+            ctx.ellipse(0, 0, layerWidth / 2, 8, 0, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(80, 80, 100, ${alpha})`;
+            ctx.fill();
+            ctx.strokeStyle = `rgba(60, 60, 80, ${alpha})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // Debris particles spinning around
+        ctx.fillStyle = 'rgba(100, 80, 60, 0.8)';
+        for (let i = 0; i < 12; i++) {
+            const angle = this.rotation * 2 + i * Math.PI / 6;
+            const dist = this.width * 0.3 + Math.sin(this.rotation * 3 + i) * 10;
+            const py = -this.height / 2 + (i % 6) * this.height / 5;
+            const px = Math.cos(angle) * dist;
+            ctx.fillRect(px - 2, py - 2, 4, 4);
+        }
+
+        ctx.restore();
+
+        // Warning label
+        ctx.fillStyle = '#FF4444';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('🌪️ TORNADO!', cx, this.y - 10);
+        ctx.textAlign = 'left';
+    }
+}
+
+function playTornadoSound() {
+    if (!audioCtx) return;
+
+    // Whooshing wind sound
+    const duration = 2;
+    const bufferSize = audioCtx.sampleRate * duration;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    // Create wind noise
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.sin(i / bufferSize * Math.PI);
+    }
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+
+    // Low pass filter for wind effect
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(800, audioCtx.currentTime);
+    filter.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + duration);
+
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + duration);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    source.start();
+}
+
+function playEarthquakeSound() {
+    if (!audioCtx) return;
+
+    // Deep rumbling sound
+    const osc = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.connect(gain);
+    osc2.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    // Low frequency rumble
+    osc.frequency.setValueAtTime(40, audioCtx.currentTime);
+    osc.frequency.linearRampToValueAtTime(25, audioCtx.currentTime + 1.5);
+    osc.type = 'sawtooth';
+
+    osc2.frequency.setValueAtTime(60, audioCtx.currentTime);
+    osc2.frequency.linearRampToValueAtTime(30, audioCtx.currentTime + 1.5);
+    osc2.type = 'triangle';
+
+    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
+
+    osc.start(audioCtx.currentTime);
+    osc2.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 1.5);
+    osc2.stop(audioCtx.currentTime + 1.5);
+}
+
+function triggerEarthquake() {
+    earthquakeActive = true;
+    earthquakeShakeTime = Date.now();
+    playEarthquakeSound();
+
+    // Destroy ALL walls (except borders)
+    for (let row = 1; row < ROWS - 1; row++) {
+        for (let col = 1; col < COLS - 1; col++) {
+            maze[row][col] = 0;
+        }
+    }
+
+    // Keep spawn area corners clear
+    // Player 1 spawn (top-left)
+    for (let r = 1; r < 4; r++) {
+        for (let c = 1; c < 4; c++) {
+            maze[r][c] = 0;
+        }
+    }
+    // Player 2 spawn (bottom-right)
+    for (let r = ROWS - 4; r < ROWS - 1; r++) {
+        for (let c = COLS - 4; c < COLS - 1; c++) {
+            maze[r][c] = 0;
+        }
+    }
+}
+
 // Cat class - Mazzi the cat chases players
 class Cat {
     constructor() {
@@ -1819,6 +2040,21 @@ function shiftWalls() {
     survivedSinceLastTag[0] = true;
     survivedSinceLastTag[1] = true;
 
+    // Check for earthquake - if one happened, regenerate the maze
+    if (earthquakeActive) {
+        earthquakeActive = false;
+        // Regenerate a full maze after earthquake
+        generateMaze();
+        playSound('wallShift');
+        return; // Skip normal wall shift
+    }
+
+    // Random chance for earthquake
+    if (Math.random() < EARTHQUAKE_CHANCE) {
+        triggerEarthquake();
+        return; // Earthquake destroys walls, next shift will rebuild
+    }
+
     // Shift walls by opening some and closing others (maintaining maze structure)
     // Much more dramatic shifts - change a significant portion of the maze
 
@@ -2285,6 +2521,17 @@ function gameLoop() {
 
     // Draw
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Earthquake screen shake effect
+    const earthquakeElapsed = Date.now() - earthquakeShakeTime;
+    if (earthquakeActive && earthquakeElapsed < 1500) {
+        const shakeIntensity = 8 * (1 - earthquakeElapsed / 1500);
+        const shakeX = (Math.random() - 0.5) * shakeIntensity * 2;
+        const shakeY = (Math.random() - 0.5) * shakeIntensity * 2;
+        ctx.save();
+        ctx.translate(shakeX, shakeY);
+    }
+
     drawMaze();
 
     for (const powerup of powerups) {
@@ -2303,9 +2550,27 @@ function gameLoop() {
     // Draw explosions on top
     drawExplosions();
 
+    // End earthquake shake transform
+    if (earthquakeActive && earthquakeElapsed < 1500) {
+        ctx.restore();
+    }
+
+    // Draw earthquake warning
+    if (earthquakeActive) {
+        ctx.fillStyle = 'rgba(139, 69, 19, 0.3)';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        ctx.fillStyle = '#FFD700';
+        ctx.font = 'bold 28px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('🌋 EARTHQUAKE! 🌋', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 20);
+        ctx.font = 'bold 18px Arial';
+        ctx.fillText('All walls destroyed!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 15);
+        ctx.textAlign = 'left';
+    }
+
     // Draw wall shift warning
     const timeToShift = WALL_SHIFT_INTERVAL - (Date.now() - wallShiftTimer);
-    if (timeToShift < 2000) {
+    if (timeToShift < 2000 && !earthquakeActive) {
         ctx.fillStyle = `rgba(255, 0, 0, ${(2000 - timeToShift) / 4000})`;
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         ctx.fillStyle = '#fff';
