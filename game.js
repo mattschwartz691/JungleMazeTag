@@ -2125,58 +2125,24 @@ function generateMaze() {
     ensureConnectivity();
 }
 
-// BFS to check and ensure path exists between spawn points
+// Simple path carving to ensure connectivity - always carve a path
 function ensureConnectivity() {
     const startRow = 2, startCol = 2;
     const endRow = ROWS - 3, endCol = COLS - 3;
 
-    // BFS to find if path exists
-    function hasPath() {
-        const queue = [[startRow, startCol]];
-        const visited = new Set();
-        visited.add(`${startRow},${startCol}`);
+    // Always carve a simple path to guarantee connectivity (faster than BFS check)
+    let row = startRow, col = startCol;
+    while (row !== endRow || col !== endCol) {
+        maze[row][col] = 0;
 
-        while (queue.length > 0) {
-            const [row, col] = queue.shift();
+        // Move toward end
+        if (row < endRow) row++;
+        else if (row > endRow) row--;
 
-            if (row === endRow && col === endCol) return true;
-
-            const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-            for (const [dr, dc] of directions) {
-                const newRow = row + dr;
-                const newCol = col + dc;
-                const key = `${newRow},${newCol}`;
-
-                if (newRow > 0 && newRow < ROWS - 1 &&
-                    newCol > 0 && newCol < COLS - 1 &&
-                    maze[newRow][newCol] === 0 &&
-                    !visited.has(key)) {
-                    visited.add(key);
-                    queue.push([newRow, newCol]);
-                }
-            }
-        }
-        return false;
+        if (col < endCol) col++;
+        else if (col > endCol) col--;
     }
-
-    // If no path, carve one
-    if (!hasPath()) {
-        // Carve a diagonal-ish path
-        let row = startRow, col = startCol;
-        while (row !== endRow || col !== endCol) {
-            maze[row][col] = 0;
-            // Also clear adjacent cells for wider path
-            if (row > 1) maze[row - 1][col] = 0;
-            if (col > 1) maze[row][col - 1] = 0;
-
-            if (row < endRow) row++;
-            else if (row > endRow) row--;
-
-            if (col < endCol) col++;
-            else if (col > endCol) col--;
-        }
-        maze[endRow][endCol] = 0;
-    }
+    maze[endRow][endCol] = 0;
 }
 
 function clearArea(startCol, startRow, width, height) {
@@ -2227,77 +2193,20 @@ function shiftWalls() {
         }
     }
 
-    // Shift walls by opening some and closing others (maintaining maze structure)
-    // Moderate shifts - change a portion of the maze while keeping it playable
-
-    // Open some walls (create new passages)
-    for (let i = 0; i < 25; i++) {
-        const row = Math.floor(Math.random() * (ROWS - 4)) + 2;
-        const col = Math.floor(Math.random() * (COLS - 4)) + 2;
+    // Simple wall shift - just toggle some random walls
+    for (let i = 0; i < 15; i++) {
+        const row = Math.floor(Math.random() * (ROWS - 6)) + 3;
+        const col = Math.floor(Math.random() * (COLS - 6)) + 3;
 
         // Don't modify spawn areas
         if (col < 5 && row < 5) continue;
         if (col > COLS - 6 && row > ROWS - 6) continue;
 
-        // Only open walls adjacent to existing paths
-        if (maze[row][col] === 1) {
-            const adjacentPaths =
-                (row > 1 && maze[row-1][col] === 0 ? 1 : 0) +
-                (row < ROWS - 2 && maze[row+1][col] === 0 ? 1 : 0) +
-                (col > 1 && maze[row][col-1] === 0 ? 1 : 0) +
-                (col < COLS - 2 && maze[row][col+1] === 0 ? 1 : 0);
-            if (adjacentPaths >= 1) {
-                maze[row][col] = 0;
-            }
-        }
+        // Toggle: wall becomes path, path becomes wall
+        maze[row][col] = maze[row][col] === 1 ? 0 : 1;
     }
 
-    // Close some paths (but not if it would block the route)
-    for (let i = 0; i < 20; i++) {
-        const row = Math.floor(Math.random() * (ROWS - 4)) + 2;
-        const col = Math.floor(Math.random() * (COLS - 4)) + 2;
-
-        // Don't modify spawn areas or center room
-        if (col < 5 && row < 5) continue;
-        if (col > COLS - 6 && row > ROWS - 6) continue;
-        const centerR = Math.floor(ROWS / 2);
-        const centerC = Math.floor(COLS / 2);
-        if (Math.abs(row - centerR) <= 2 && Math.abs(col - centerC) <= 2) continue;
-
-        // Close paths that have multiple adjacent paths (won't create dead ends)
-        // Lower threshold to allow more closing
-        if (maze[row][col] === 0) {
-            const adjacentPaths =
-                (row > 1 && maze[row-1][col] === 0 ? 1 : 0) +
-                (row < ROWS - 2 && maze[row+1][col] === 0 ? 1 : 0) +
-                (col > 1 && maze[row][col-1] === 0 ? 1 : 0) +
-                (col < COLS - 2 && maze[row][col+1] === 0 ? 1 : 0);
-            if (adjacentPaths >= 2) {
-                maze[row][col] = 1;
-            }
-        }
-    }
-
-    // Add some random corridor carving for dramatic effect
-    for (let i = 0; i < 3; i++) {
-        let row = Math.floor(Math.random() * (ROWS - 6)) + 3;
-        let col = Math.floor(Math.random() * (COLS - 6)) + 3;
-        const direction = Math.random() < 0.5 ? 'horizontal' : 'vertical';
-        const length = Math.floor(Math.random() * 5) + 3;
-
-        for (let j = 0; j < length; j++) {
-            if (row > 1 && row < ROWS - 2 && col > 1 && col < COLS - 2) {
-                // Don't modify spawn areas
-                if (!(col < 5 && row < 5) && !(col > COLS - 6 && row > ROWS - 6)) {
-                    maze[row][col] = 0;
-                }
-            }
-            if (direction === 'horizontal') col++;
-            else row++;
-        }
-    }
-
-    // Ensure connectivity after wall shift
+    // Always ensure a path exists
     ensureConnectivity();
 
     // Make sure players aren't stuck in walls
