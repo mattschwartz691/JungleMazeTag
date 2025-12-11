@@ -675,9 +675,8 @@ let tsunamiSafeSpots = []; // Array of {row, col} safe spots
 const TSUNAMI_DURATION = 10000; // 10 seconds to reach safety
 const TSUNAMI_SAFE_SPOT_COUNT = 3; // Number of safe spots
 
-// Disaster cycle system
-const DISASTER_INTERVAL = 15000; // Disaster every 15 seconds
-let lastDisasterTime = 0;
+// Disaster cycle system - every 3rd wall shift is a disaster
+let wallShiftCount = 0; // Count wall shifts
 let currentDisasterIndex = 0; // 0 = earthquake, 1 = tsunami, 2 = tornado
 
 function triggerNextDisaster() {
@@ -2457,12 +2456,15 @@ function initGame() {
 
     powerups = [];
     cat = mazziEnabled ? new Cat() : null; // Create the cat enemy if enabled
+    tornado = null;
     tsunamiActive = false;
     tsunamiSafeSpots = [];
+    earthquakeActive = false;
+    wallShiftCount = 0;
+    currentDisasterIndex = 0;
     gameOver = false;
     wallShiftTimer = Date.now();
     lastPowerupSpawn = Date.now();
-    lastDisasterTime = Date.now();
     itPlayerIndex = Math.random() > 0.5 ? 0 : 1; // Random starting "it"
     scores = [0, 0];
     tagCooldown = 0;
@@ -2513,9 +2515,17 @@ function gameLoop() {
         // Check tag collision
         checkTagCollision();
 
-        // Wall shift timer
+        // Wall shift timer - every 3rd shift is a disaster
         if (Date.now() - wallShiftTimer > WALL_SHIFT_INTERVAL) {
-            shiftWalls();
+            wallShiftCount++;
+            if (wallShiftCount >= 3) {
+                // Every 3rd shift is a disaster instead
+                triggerNextDisaster();
+                wallShiftCount = 0;
+            } else {
+                // Regular wall shift
+                shiftWalls();
+            }
             wallShiftTimer = Date.now();
         }
 
@@ -2523,12 +2533,6 @@ function gameLoop() {
         if (Date.now() - lastPowerupSpawn > POWERUP_SPAWN_INTERVAL) {
             spawnPowerup();
             lastPowerupSpawn = Date.now();
-        }
-
-        // Random disaster timer
-        if (Date.now() - lastDisasterTime > DISASTER_INTERVAL) {
-            triggerNextDisaster();
-            lastDisasterTime = Date.now();
         }
 
         // Update powerup status display periodically
