@@ -791,6 +791,20 @@ const animalEmojis = {
     fox: '🦊'
 };
 
+const animalNames = {
+    walrus: 'Walrus',
+    penguin: 'Penguin',
+    bear: 'Bear',
+    fox: 'Fox'
+};
+
+function getPlayerAnimalName(playerIndex) {
+    if (players[playerIndex]) {
+        return animalNames[players[playerIndex].animal] || 'Player ' + (playerIndex + 1);
+    }
+    return playerIndex === 0 ? 'Walrus' : 'Penguin';
+}
+
 function toggleAnimalSelect(playerNum) {
     const selectEl = document.getElementById(`p${playerNum}AnimalSelect`);
     const otherSelectEl = document.getElementById(`p${playerNum === 1 ? 2 : 1}AnimalSelect`);
@@ -816,6 +830,16 @@ function selectAnimal(playerNum, animal) {
     const iconEl = document.getElementById(`p${playerNum}Icon`);
     if (iconEl) {
         iconEl.textContent = animalEmojis[animal];
+    }
+
+    // Update the header text with animal name
+    const playerInfo = document.getElementById(`player${playerNum}Info`);
+    if (playerInfo) {
+        const h3 = playerInfo.querySelector('h3');
+        if (h3) {
+            const controls = playerNum === 1 ? '(WASD)' : '(Arrows)';
+            h3.innerHTML = `<span class="player-icon" id="p${playerNum}Icon" onclick="toggleAnimalSelect(${playerNum})">${animalEmojis[animal]}</span> ${animalNames[animal]} ${controls}`;
+        }
     }
 
     // Update button selected states
@@ -2844,7 +2868,7 @@ function checkTagCollision() {
         updatePowerupStatus();
 
         // Show tag notification
-        showTagNotification(itPlayerIndex === 0 ? 'Walrus' : 'Penguin');
+        showTagNotification(getPlayerAnimalName(itPlayerIndex));
     }
 }
 
@@ -2870,9 +2894,9 @@ function updateScoreDisplay() {
 
     // Check for winner
     if (scores[0] >= WINNING_SCORE) {
-        endGame('Walrus');
+        endGame(getPlayerAnimalName(0));
     } else if (scores[1] >= WINNING_SCORE) {
-        endGame('Penguin');
+        endGame(getPlayerAnimalName(1));
     }
 }
 
