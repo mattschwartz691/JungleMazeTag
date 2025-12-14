@@ -840,7 +840,7 @@ function toggleAnimalSelect(playerNum) {
 function selectAnimal(playerNum, animal) {
     const playerIndex = playerNum - 1;
     if (players[playerIndex]) {
-        players[playerIndex].animal = animal;
+        players[playerIndex].setAnimal(animal);
     }
 
     // Update the icon in the header
@@ -1619,6 +1619,14 @@ class Cat {
 // Key states
 const keys = {};
 
+// Animal stats - each animal has unique abilities
+const animalStats = {
+    penguin: { size: CELL_SIZE - 16, speed: 4 },  // Smaller
+    bear: { size: CELL_SIZE - 2, speed: 3.5 },     // Bigger but slightly slower
+    fox: { size: CELL_SIZE - 10, speed: 5 },       // Faster
+    walrus: { size: CELL_SIZE - 10, speed: 4 }     // Normal with tusks
+};
+
 // Player class
 class Player {
     constructor(x, y, color, name, controls, spawnX, spawnY) {
@@ -1629,8 +1637,10 @@ class Player {
         this.color = color;
         this.name = name;
         this.controls = controls;
-        this.size = CELL_SIZE - 10;
-        this.speed = 4;
+        this.baseSize = CELL_SIZE - 10;
+        this.size = this.baseSize;
+        this.baseSpeed = 4;
+        this.speed = this.baseSpeed;
         this.invisible = false;
         this.invisibleTimer = 0;
         this.wallPasses = 0;
@@ -1638,6 +1648,68 @@ class Player {
         this.frozen = false;
         this.frozenTimer = 0;
         this.animal = name === 'Player 1' ? 'walrus' : 'penguin';
+        this.updateAnimalStats();
+    }
+
+    updateAnimalStats() {
+        const stats = animalStats[this.animal];
+        if (stats) {
+            this.size = stats.size;
+            this.baseSpeed = stats.speed;
+            this.speed = stats.speed;
+        }
+    }
+
+    setAnimal(animal) {
+        this.animal = animal;
+        this.updateAnimalStats();
+    }
+
+    // Get walrus tusk hitboxes (two tusks pointing down from face)
+    getTuskHitboxes() {
+        if (this.animal !== 'walrus') return [];
+
+        const cx = this.x + this.size / 2;
+        const cy = this.y + this.size / 2;
+
+        // Tusks extend below the walrus face
+        const tuskLength = 12;
+        const tuskWidth = 4;
+        const tuskSpacing = 8;
+
+        return [
+            // Left tusk
+            {
+                x: cx - tuskSpacing - tuskWidth / 2,
+                y: cy + 6,
+                width: tuskWidth,
+                height: tuskLength
+            },
+            // Right tusk
+            {
+                x: cx + tuskSpacing - tuskWidth / 2,
+                y: cy + 6,
+                width: tuskWidth,
+                height: tuskLength
+            }
+        ];
+    }
+
+    // Check if a point collides with this player's tusks
+    tuskCollidesWithPlayer(otherPlayer) {
+        if (this.animal !== 'walrus') return false;
+
+        const tusks = this.getTuskHitboxes();
+        for (const tusk of tusks) {
+            // Check if tusk rectangle overlaps with other player
+            if (tusk.x < otherPlayer.x + otherPlayer.size &&
+                tusk.x + tusk.width > otherPlayer.x &&
+                tusk.y < otherPlayer.y + otherPlayer.size &&
+                tusk.y + tusk.height > otherPlayer.y) {
+                return true;
+            }
+        }
+        return false;
     }
 
     teleportToSpawn() {
@@ -1660,9 +1732,9 @@ class Player {
         let dx = 0;
         let dy = 0;
 
-        // IT player is faster than the runner
+        // IT player is faster than the runner (gets +1 speed boost)
         const playerIndex = this.name === 'Player 1' ? 0 : 1;
-        const currentSpeed = itPlayerIndex === playerIndex ? 5 : this.speed;
+        const currentSpeed = itPlayerIndex === playerIndex ? this.baseSpeed + 1 : this.baseSpeed;
 
         if (keys[this.controls.up]) dy = -currentSpeed;
         if (keys[this.controls.down]) dy = currentSpeed;
@@ -1913,18 +1985,34 @@ class Player {
             ctx.fill();
         }
 
-        // Tusks
+        // Tusks - bigger and more prominent (these can tag!)
+        const tuskY = cy + 6;
+        const tuskLength = 12;
+
+        // Left tusk with glow effect
+        ctx.shadowColor = '#FFD700';
+        ctx.shadowBlur = 4;
         ctx.fillStyle = '#FFFFF0';
+        ctx.strokeStyle = '#DAA520';
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(cx - 5, this.y + 16);
-        ctx.lineTo(cx - 7, this.y + 26);
-        ctx.lineTo(cx - 3, this.y + 16);
+        ctx.moveTo(cx - 8, tuskY);
+        ctx.lineTo(cx - 10, tuskY + tuskLength);
+        ctx.lineTo(cx - 6, tuskY);
+        ctx.closePath();
         ctx.fill();
+        ctx.stroke();
+
+        // Right tusk with glow effect
         ctx.beginPath();
-        ctx.moveTo(cx + 5, this.y + 16);
-        ctx.lineTo(cx + 7, this.y + 26);
-        ctx.lineTo(cx + 3, this.y + 16);
+        ctx.moveTo(cx + 8, tuskY);
+        ctx.lineTo(cx + 10, tuskY + tuskLength);
+        ctx.lineTo(cx + 6, tuskY);
+        ctx.closePath();
         ctx.fill();
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
 
         // Eyes
         ctx.fillStyle = '#000';
@@ -2944,19 +3032,47 @@ function checkTagCollision() {
     const dy = (p1.y + p1.size / 2) - (p2.y + p2.size / 2);
     const distance = Math.sqrt(dx * dx + dy * dy);
 
+    let tagHappened = false;
+    let taggerIndex = itPlayerIndex;
+    let taggedIndex = 1 - itPlayerIndex;
+
+    // Normal body collision tag (IT player tags the other)
     if (distance < (p1.size + p2.size) / 2.5) {
+        tagHappened = true;
+    }
+
+    // Walrus tusk collision - tusks can tag regardless of who is IT!
+    // If walrus is IT: tusks extend the tag range
+    // If walrus is NOT IT: touching tusks tags the other player (walrus "pokes" them)
+    for (let i = 0; i < players.length; i++) {
+        const player = players[i];
+        const otherIdx = 1 - i;
+        const other = players[otherIdx];
+
+        // Skip if either is invisible
+        if (player.invisible || other.invisible) continue;
+
+        if (player.animal === 'walrus' && player.tuskCollidesWithPlayer(other)) {
+            tagHappened = true;
+            // Walrus is the tagger when tusks hit
+            taggerIndex = i;
+            taggedIndex = otherIdx;
+            break;
+        }
+    }
+
+    if (tagHappened) {
         // Tag happened! The tagged player loses their survival streak
-        const taggedPlayerIndex = 1 - itPlayerIndex;
-        survivedSinceLastTag[taggedPlayerIndex] = false;
+        survivedSinceLastTag[taggedIndex] = false;
 
         // Play tag sound
         playSound('tag');
 
         // The tagger teleports back to spawn
-        itPlayer.teleportToSpawn();
+        players[taggerIndex].teleportToSpawn();
 
         // The tagged person becomes "it"
-        itPlayerIndex = 1 - itPlayerIndex;
+        itPlayerIndex = taggedIndex;
 
         // Set cooldown to prevent instant re-tagging
         tagCooldown = 1000; // 1 second cooldown
