@@ -630,7 +630,7 @@ const WALL_BEAR = 3;     // Brown - only bear can pass
 const WALL_PENGUIN = 4;  // Dark blue/black - only penguin can pass
 const WALL_WALRUS = 5;   // Tan - only walrus can pass
 
-const COLORED_WALLS_PER_SHIFT = 4; // Number of colored walls to spawn each shift
+const COLORED_WALLS_PER_TYPE = 2; // Number of colored walls per animal type to spawn each shift
 
 // Map animal types to their passable wall type
 const animalWallTypes = {
@@ -2675,6 +2675,31 @@ function generateMaze() {
 
     // Ensure connectivity between spawn points
     ensureConnectivity();
+
+    // Add colored walls at game start
+    spawnColoredWalls(3); // Spawn 3 of each type at start
+}
+
+// Spawn colored walls throughout the maze
+function spawnColoredWalls(countPerType) {
+    const coloredWallTypes = [WALL_FOX, WALL_BEAR, WALL_PENGUIN, WALL_WALRUS];
+    for (const wallType of coloredWallTypes) {
+        let spawned = 0;
+        for (let attempt = 0; attempt < 50 && spawned < countPerType; attempt++) {
+            const row = Math.floor(Math.random() * (ROWS - 6)) + 3;
+            const col = Math.floor(Math.random() * (COLS - 6)) + 3;
+
+            // Don't modify spawn areas
+            if (col < 5 && row < 5) continue;
+            if (col > COLS - 6 && row > ROWS - 6) continue;
+
+            // Only place on existing normal walls
+            if (maze[row][col] === WALL_NORMAL) {
+                maze[row][col] = wallType;
+                spawned++;
+            }
+        }
+    }
 }
 
 // Simple path carving to ensure connectivity - always carve a path
@@ -2742,24 +2767,7 @@ function shiftWalls() {
     }
 
     // Spawn some colored walls for each animal type
-    const coloredWallTypes = [WALL_FOX, WALL_BEAR, WALL_PENGUIN, WALL_WALRUS];
-    for (const wallType of coloredWallTypes) {
-        // Spawn 1 wall of each color per shift
-        for (let attempt = 0; attempt < 20; attempt++) {
-            const row = Math.floor(Math.random() * (ROWS - 6)) + 3;
-            const col = Math.floor(Math.random() * (COLS - 6)) + 3;
-
-            // Don't modify spawn areas
-            if (col < 5 && row < 5) continue;
-            if (col > COLS - 6 && row > ROWS - 6) continue;
-
-            // Only place on existing normal walls
-            if (maze[row][col] === WALL_NORMAL) {
-                maze[row][col] = wallType;
-                break; // Move to next wall type
-            }
-        }
-    }
+    spawnColoredWalls(COLORED_WALLS_PER_TYPE);
 
     // Always ensure a path exists
     ensureConnectivity();
