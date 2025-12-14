@@ -623,6 +623,23 @@ const ROWS = 16;
 const CANVAS_WIDTH = COLS * CELL_SIZE;
 const CANVAS_HEIGHT = ROWS * CELL_SIZE;
 
+// Wall types: 0 = empty, 1 = normal wall, 2+ = animal-specific walls
+const WALL_NORMAL = 1;
+const WALL_FOX = 2;      // Orange - only fox can pass
+const WALL_BEAR = 3;     // Brown - only bear can pass
+const WALL_PENGUIN = 4;  // Dark blue/black - only penguin can pass
+const WALL_WALRUS = 5;   // Tan - only walrus can pass
+
+const COLORED_WALLS_PER_SHIFT = 4; // Number of colored walls to spawn each shift
+
+// Map animal types to their passable wall type
+const animalWallTypes = {
+    fox: WALL_FOX,
+    bear: WALL_BEAR,
+    penguin: WALL_PENGUIN,
+    walrus: WALL_WALRUS
+};
+
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
 
@@ -1091,8 +1108,8 @@ class Tornado {
 
         for (let row = startRow; row <= endRow; row++) {
             if (row > 0 && row < ROWS - 1 && col > 0 && col < COLS - 1) {
-                if (maze[row][col] === 1) {
-                    maze[row][col] = 0; // Destroy wall
+                if (maze[row][col] >= 1) {
+                    maze[row][col] = 0; // Destroy wall (any type)
                 }
             }
         }
@@ -1427,8 +1444,8 @@ class Cat {
         for (const corner of corners) {
             const col = Math.floor(corner.x / CELL_SIZE);
             const row = Math.floor(corner.y / CELL_SIZE);
-            if (row < 0 || row >= ROWS || col < 0 || col >= COLS || maze[row][col] === 1) {
-                return false;
+            if (row < 0 || row >= ROWS || col < 0 || col >= COLS || maze[row][col] >= 1) {
+                return false; // Cat is blocked by all wall types
             }
         }
         return true;
@@ -1753,8 +1770,13 @@ class Player {
             const col = Math.floor(corner.x / CELL_SIZE);
             const row = Math.floor(corner.y / CELL_SIZE);
             if (col >= 0 && col < COLS && row >= 0 && row < ROWS) {
-                if (maze[row][col] === 1) {
-                    return true;
+                const wallType = maze[row][col];
+                if (wallType >= 1) {
+                    // Check if this is an animal-specific wall the player can pass through
+                    const myWallType = animalWallTypes[this.animal];
+                    if (wallType !== myWallType) {
+                        return true; // Can't pass through this wall
+                    }
                 }
             }
         }
@@ -1773,8 +1795,13 @@ class Player {
             const col = Math.floor(corner.x / CELL_SIZE);
             const row = Math.floor(corner.y / CELL_SIZE);
             if (col >= 0 && col < COLS && row >= 0 && row < ROWS) {
-                if (maze[row][col] === 1) {
-                    return false;
+                const wallType = maze[row][col];
+                if (wallType >= 1) {
+                    // Check if this is an animal-specific wall the player can pass through
+                    const myWallType = animalWallTypes[this.animal];
+                    if (wallType !== myWallType) {
+                        return false; // Can't pass through this wall
+                    }
                 }
             }
         }
@@ -2622,8 +2649,28 @@ function shiftWalls() {
         if (col < 5 && row < 5) continue;
         if (col > COLS - 6 && row > ROWS - 6) continue;
 
-        // Toggle: wall becomes path, path becomes wall
-        maze[row][col] = maze[row][col] === 1 ? 0 : 1;
+        // Toggle: any wall becomes path, path becomes normal wall
+        maze[row][col] = maze[row][col] >= 1 ? 0 : 1;
+    }
+
+    // Spawn some colored walls for each animal type
+    const coloredWallTypes = [WALL_FOX, WALL_BEAR, WALL_PENGUIN, WALL_WALRUS];
+    for (const wallType of coloredWallTypes) {
+        // Spawn 1 wall of each color per shift
+        for (let attempt = 0; attempt < 20; attempt++) {
+            const row = Math.floor(Math.random() * (ROWS - 6)) + 3;
+            const col = Math.floor(Math.random() * (COLS - 6)) + 3;
+
+            // Don't modify spawn areas
+            if (col < 5 && row < 5) continue;
+            if (col > COLS - 6 && row > ROWS - 6) continue;
+
+            // Only place on existing normal walls
+            if (maze[row][col] === WALL_NORMAL) {
+                maze[row][col] = wallType;
+                break; // Move to next wall type
+            }
+        }
     }
 
     // Always ensure a path exists
@@ -2658,7 +2705,7 @@ function shiftWalls() {
     if (cat) {
         const catCol = Math.floor((cat.x + cat.size / 2) / CELL_SIZE);
         const catRow = Math.floor((cat.y + cat.size / 2) / CELL_SIZE);
-        if (catRow >= 0 && catRow < ROWS && catCol >= 0 && catCol < COLS && maze[catRow][catCol] === 1) {
+        if (catRow >= 0 && catRow < ROWS && catCol >= 0 && catCol < COLS && maze[catRow][catCol] >= 1) {
             cat.respawn();
         }
     }
@@ -2673,18 +2720,59 @@ function drawMaze() {
         for (let col = 0; col < COLS; col++) {
             const x = col * CELL_SIZE;
             const y = row * CELL_SIZE;
+            const wallType = maze[row][col];
 
-            if (maze[row][col] === 1) {
-                // Draw jungle wall (tree/bush)
-                ctx.fillStyle = '#2d5a27';
+            if (wallType >= 1) {
+                // Get colors based on wall type
+                let baseColor, innerColor, detailColor, centerColor, emoji;
+
+                switch (wallType) {
+                    case WALL_FOX: // Orange for fox
+                        baseColor = '#D35400';
+                        innerColor = '#E67E22';
+                        detailColor = '#F39C12';
+                        centerColor = '#A04000';
+                        emoji = '🦊';
+                        break;
+                    case WALL_BEAR: // Brown for bear
+                        baseColor = '#5D4037';
+                        innerColor = '#795548';
+                        detailColor = '#8D6E63';
+                        centerColor = '#3E2723';
+                        emoji = '🐻';
+                        break;
+                    case WALL_PENGUIN: // Dark blue/black for penguin
+                        baseColor = '#1a1a2e';
+                        innerColor = '#2d2d44';
+                        detailColor = '#3d3d5c';
+                        centerColor = '#0d0d1a';
+                        emoji = '🐧';
+                        break;
+                    case WALL_WALRUS: // Tan for walrus
+                        baseColor = '#8B7355';
+                        innerColor = '#A89078';
+                        detailColor = '#C4A484';
+                        centerColor = '#6B5344';
+                        emoji = '🦭';
+                        break;
+                    default: // Normal green jungle wall
+                        baseColor = '#2d5a27';
+                        innerColor = '#1a4d1a';
+                        detailColor = '#228B22';
+                        centerColor = '#0d3d0d';
+                        emoji = null;
+                }
+
+                // Draw wall base
+                ctx.fillStyle = baseColor;
                 ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
 
-                // Draw leaves/foliage
-                ctx.fillStyle = '#1a4d1a';
+                // Draw inner area
+                ctx.fillStyle = innerColor;
                 ctx.fillRect(x + 2, y + 2, CELL_SIZE - 4, CELL_SIZE - 4);
 
-                // Add leaf details
-                ctx.fillStyle = '#228B22';
+                // Add corner details
+                ctx.fillStyle = detailColor;
                 ctx.beginPath();
                 ctx.arc(x + 10, y + 10, 8, 0, Math.PI * 2);
                 ctx.fill();
@@ -2699,10 +2787,20 @@ function drawMaze() {
                 ctx.fill();
 
                 // Add darker center
-                ctx.fillStyle = '#0d3d0d';
+                ctx.fillStyle = centerColor;
                 ctx.beginPath();
                 ctx.arc(x + CELL_SIZE / 2, y + CELL_SIZE / 2, 6, 0, Math.PI * 2);
                 ctx.fill();
+
+                // Draw animal emoji for colored walls
+                if (emoji) {
+                    ctx.font = '14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(emoji, x + CELL_SIZE / 2, y + CELL_SIZE / 2);
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'alphabetic';
+                }
             } else {
                 // Draw ground
                 ctx.fillStyle = '#4a7c3f';
@@ -2753,7 +2851,7 @@ function spawnPowerup() {
         y = row * CELL_SIZE + CELL_SIZE / 2 - 10;
         attempts++;
     } while (attempts < 100 && (
-        maze[row][col] === 1 ||
+        maze[row][col] >= 1 || // Any wall type
         (col < 5 && row < 5) ||
         (col > COLS - 6 && row > ROWS - 6) ||
         !isReachableFromSpawn(row, col)
