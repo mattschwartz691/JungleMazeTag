@@ -3469,7 +3469,15 @@ document.addEventListener('click', () => {
 });
 
 function restartGame() {
+    // Save current animal selections before resetting
+    const savedAnimals = players.map(p => p.animal);
+
     initGame();
+
+    // Restore animal selections
+    for (let i = 0; i < players.length && i < savedAnimals.length; i++) {
+        players[i].setAnimal(savedAnimals[i]);
+    }
 }
 
 // Start the game
