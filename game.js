@@ -632,6 +632,30 @@ const WALL_WALRUS = 5;   // Tan - only walrus can pass
 
 const COLORED_WALLS_PER_TYPE = 2; // Number of colored walls per animal type to spawn each shift
 
+let coloredWallsEnabled = true; // Toggle for colored/special walls
+
+function toggleColoredWalls() {
+    coloredWallsEnabled = !coloredWallsEnabled;
+    const btn = document.getElementById('toggleColoredWalls');
+    if (btn) {
+        btn.classList.toggle('active', coloredWallsEnabled);
+    }
+    // Convert existing colored walls to normal walls or spawn new ones
+    if (!coloredWallsEnabled) {
+        // Convert all colored walls to normal walls
+        for (let row = 0; row < ROWS; row++) {
+            for (let col = 0; col < COLS; col++) {
+                if (maze[row][col] >= 2) {
+                    maze[row][col] = WALL_NORMAL;
+                }
+            }
+        }
+    } else {
+        // Spawn colored walls
+        spawnColoredWalls(3);
+    }
+}
+
 // Map animal types to their passable wall type
 const animalWallTypes = {
     fox: WALL_FOX,
@@ -1712,6 +1736,55 @@ class Player {
         return false;
     }
 
+    // Check if player is inside their own colored wall and pass them through
+    checkColoredWallPassThrough(dx, dy) {
+        if (!coloredWallsEnabled) return;
+
+        const myWallType = animalWallTypes[this.animal];
+        const centerX = this.x + this.size / 2;
+        const centerY = this.y + this.size / 2;
+        const col = Math.floor(centerX / CELL_SIZE);
+        const row = Math.floor(centerY / CELL_SIZE);
+
+        // Check if we're in our colored wall
+        if (row >= 0 && row < ROWS && col >= 0 && col < COLS && maze[row][col] === myWallType) {
+            // Pass through in the direction of movement
+            if (dx > 0) {
+                // Moving right - find exit on right side
+                let exitCol = col + 1;
+                while (exitCol < COLS - 1 && maze[row][exitCol] === myWallType) exitCol++;
+                if (exitCol < COLS - 1 && maze[row][exitCol] === 0) {
+                    this.x = exitCol * CELL_SIZE + (CELL_SIZE - this.size) / 2;
+                    playSound('teleport');
+                }
+            } else if (dx < 0) {
+                // Moving left - find exit on left side
+                let exitCol = col - 1;
+                while (exitCol > 0 && maze[row][exitCol] === myWallType) exitCol--;
+                if (exitCol > 0 && maze[row][exitCol] === 0) {
+                    this.x = exitCol * CELL_SIZE + (CELL_SIZE - this.size) / 2;
+                    playSound('teleport');
+                }
+            } else if (dy > 0) {
+                // Moving down - find exit below
+                let exitRow = row + 1;
+                while (exitRow < ROWS - 1 && maze[exitRow][col] === myWallType) exitRow++;
+                if (exitRow < ROWS - 1 && maze[exitRow][col] === 0) {
+                    this.y = exitRow * CELL_SIZE + (CELL_SIZE - this.size) / 2;
+                    playSound('teleport');
+                }
+            } else if (dy < 0) {
+                // Moving up - find exit above
+                let exitRow = row - 1;
+                while (exitRow > 0 && maze[exitRow][col] === myWallType) exitRow--;
+                if (exitRow > 0 && maze[exitRow][col] === 0) {
+                    this.y = exitRow * CELL_SIZE + (CELL_SIZE - this.size) / 2;
+                    playSound('teleport');
+                }
+            }
+        }
+    }
+
     teleportToSpawn() {
         this.x = this.spawnX;
         this.y = this.spawnY;
@@ -1789,6 +1862,9 @@ class Player {
         if ((this.wallPasses <= 0 || this.wallPassTimer <= 0) && this.isInWall(this.x, this.y)) {
             this.ejectFromWall();
         }
+
+        // Check if player entered their own colored wall - pass them through to other side
+        this.checkColoredWallPassThrough(dx, dy);
 
         // Keep player in bounds
         this.x = Math.max(5, Math.min(CANVAS_WIDTH - this.size - 5, this.x));
@@ -2682,6 +2758,8 @@ function generateMaze() {
 
 // Spawn colored walls throughout the maze
 function spawnColoredWalls(countPerType) {
+    if (!coloredWallsEnabled) return; // Don't spawn if disabled
+
     const coloredWallTypes = [WALL_FOX, WALL_BEAR, WALL_PENGUIN, WALL_WALRUS];
     for (const wallType of coloredWallTypes) {
         let spawned = 0;
